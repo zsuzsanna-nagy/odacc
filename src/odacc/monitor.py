@@ -48,6 +48,68 @@ class OnlineMonitor:
         self.components = ComponentManager()
         self.diagnostic_heartbeat_seconds = max(0.0, float(diagnostic_heartbeat_seconds or 0.0))
 
+    @staticmethod
+    def _symbolic_stats_snapshot(backend):
+        """Return a compact copy of symbolic counters, if available.
+
+        The snapshot is taken immediately before/after one online solve so the
+        final certification route can be classified from *successful proof*
+        counters rather than from cumulative run-level diagnostics.  This is
+        reporting-only metadata and does not affect search or certification.
+        """
+        jodap = getattr(backend, "jodap", None)
+        stats = getattr(jodap, "stats", None)
+        return dict(stats) if isinstance(stats, dict) else None
+
+    @staticmethod
+    def _certification_route(before, after, result):
+        """Classify the exclusive final route used for one certified prefix.
+
+        Only counters denoting a successful/proven route are considered.
+        Attempts and unsuccessful fallbacks are deliberately ignored.  The
+        precedence mirrors the method hierarchy: an exact proof dominates a
+        local repair, which dominates direct continuation.  If the symbolic
+        solver returns a feasible prefix without one of the specialised proof
+        counters firing, the result came from the unrestricted exact A* path.
+        """
+        if before is None or after is None or result is None or not result.feasible:
+            return None
+
+        def increased(name):
+            return int(after.get(name, 0) or 0) > int(before.get(name, 0) or 0)
+
+        checkpoint_exact = (
+            "persistent_checkpoint_context_proven",
+            "checkpoint_slice_proven",
+            "checkpoint_bound_binding_proven",
+            "provenance_slice_proven",
+        )
+        local_repair = (
+            "one_step_repair_proven",
+            "extra_event_fast_proven",
+            "guard_data_repair_proven",
+            "object_relation_repair_proven",
+            "local_repair_search_proven",
+            "fresh_object_sync_successes",
+            "first_event_latent_relation_hits",
+        )
+        direct = (
+            "zero_cost_sync_hits",
+            "zero_cost_delta_hits",
+            "silent_macro_hits",
+            "merge_direct_hits",
+            "merge_bridge_hits",
+            "merge_fast_successes",
+        )
+
+        if any(increased(k) for k in checkpoint_exact):
+            return "checkpoint_exact"
+        if any(increased(k) for k in local_repair):
+            return "local_repair"
+        if any(increased(k) for k in direct):
+            return "direct"
+        return "full_exact"
+
     def process(self, unit: ObservableUnit, solve_on_updates: bool = False,
                 progress_callback=None, checkpoint_callback=None):
         component, merged = self.components.apply(unit)
@@ -90,12 +152,19 @@ class OnlineMonitor:
             )
             heartbeat_thread.start()
 
+        stats_before = self._symbolic_stats_snapshot(self.backend)
         try:
             result = self.backend.solve(component, offline=False)
         finally:
             stop_heartbeat.set()
             if heartbeat_thread is not None:
                 heartbeat_thread.join(timeout=0.2)
+        stats_after = self._symbolic_stats_snapshot(self.backend)
+        certification_route = self._certification_route(stats_before, stats_after, result)
+        if result is not None:
+            # Dynamic reporting metadata: AlignmentResult remains unchanged, so
+            # existing JSON/result consumers stay backwards compatible.
+            result.certification_route = certification_route
         component.current_alignment = result
         return result, merged
 
@@ -163,6 +232,7 @@ class OnlineMonitor:
                     "object_cost": cb.get("object"),
                     "encode_seconds": result.encode_seconds,
                     "solve_seconds": result.solve_seconds,
+                    "certification_route": getattr(result, "certification_route", None),
                 })
 
             out.completed_stream_units += 1
