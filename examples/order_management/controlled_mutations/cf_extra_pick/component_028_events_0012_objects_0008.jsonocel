@@ -1,0 +1,206 @@
+{
+  "ocel:global-log": {
+    "ocel:version": "1.0",
+    "ocel:ordering": "timestamp"
+  },
+  "ocel:global-event": {},
+  "ocel:global-object": {},
+  "ocel:objects": {
+    "i-881000": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 39.99,
+        "weight": 0.2
+      }
+    },
+    "i-881001": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 1149.0,
+        "weight": 0.188
+      }
+    },
+    "i-881002": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 2200.0,
+        "weight": 1.25
+      }
+    },
+    "i-881003": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 199.99,
+        "weight": 1.48
+      }
+    },
+    "i-881004": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 799.0,
+        "weight": 0.166
+      }
+    },
+    "i-881005": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 529.0,
+        "weight": 0.21
+      }
+    },
+    "o-990241": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "price": 4921.98
+      }
+    },
+    "p-660133": {
+      "ocel:type": "PACKAGE",
+      "ocel:ovmap": {
+        "weight": 3.494
+      }
+    }
+  },
+  "ocel:events": {
+    "place_o-990241": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2023-05-30T17:04:00+00:00",
+      "ocel:omap": [
+        "i-881000",
+        "i-881001",
+        "i-881002",
+        "i-881003",
+        "i-881004",
+        "i-881005",
+        "o-990241"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-881004": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-05-30T18:55:46+00:00",
+      "ocel:omap": [
+        "i-881004"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-881000": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-05-30T19:31:48+00:00",
+      "ocel:omap": [
+        "i-881000"
+      ],
+      "ocel:vmap": {}
+    },
+    "confirm_o-990241": {
+      "ocel:activity": "confirm order",
+      "ocel:timestamp": "2023-05-31T06:12:24+00:00",
+      "ocel:omap": [
+        "i-881000",
+        "i-881001",
+        "i-881002",
+        "i-881003",
+        "i-881004",
+        "i-881005",
+        "o-990241"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-881005": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-05-31T10:13:59+00:00",
+      "ocel:omap": [
+        "i-881005"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-881003": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-05-31T12:21:13+00:00",
+      "ocel:omap": [
+        "i-881003"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-881001": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-05-31T12:23:37+00:00",
+      "ocel:omap": [
+        "i-881001"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-881002": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-05-31T14:07:40+00:00",
+      "ocel:omap": [
+        "i-881002"
+      ],
+      "ocel:vmap": {}
+    },
+    "create_p-660133": {
+      "ocel:activity": "create package",
+      "ocel:timestamp": "2023-06-01T23:00:00+00:00",
+      "ocel:omap": [
+        "i-881000",
+        "i-881001",
+        "i-881002",
+        "i-881003",
+        "i-881004",
+        "i-881005",
+        "p-660133"
+      ],
+      "ocel:vmap": {}
+    },
+    "send_p-660133": {
+      "ocel:activity": "send package",
+      "ocel:timestamp": "2023-06-02T07:40:19+00:00",
+      "ocel:omap": [
+        "i-881000",
+        "i-881001",
+        "i-881002",
+        "i-881003",
+        "i-881004",
+        "i-881005",
+        "p-660133"
+      ],
+      "ocel:vmap": {}
+    },
+    "deliver_p-660133": {
+      "ocel:activity": "package delivered",
+      "ocel:timestamp": "2023-06-02T12:40:40+00:00",
+      "ocel:omap": [
+        "i-881000",
+        "i-881001",
+        "i-881002",
+        "i-881003",
+        "i-881004",
+        "i-881005",
+        "p-660133"
+      ],
+      "ocel:vmap": {}
+    },
+    "pay_o-990241": {
+      "ocel:activity": "pay order",
+      "ocel:timestamp": "2023-06-08T11:20:50+00:00",
+      "ocel:omap": [
+        "i-881000",
+        "i-881001",
+        "i-881002",
+        "i-881003",
+        "i-881004",
+        "i-881005",
+        "o-990241"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-881003__controlled_extra": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-05-31T12:21:13.000001+00:00",
+      "ocel:omap": [
+        "i-881003"
+      ],
+      "ocel:vmap": {}
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "ocel:global-log": {
+    "ocel:version": "1.0",
+    "ocel:ordering": "timestamp"
+  },
+  "ocel:global-event": {},
+  "ocel:global-object": {},
+  "ocel:objects": {
+    "i-881734": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 523.26,
+        "weight": 0.483
+      }
+    },
+    "o-990424": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "price": 528.26
+      }
+    },
+    "p-660247": {
+      "ocel:type": "PACKAGE",
+      "ocel:ovmap": {
+        "weight": 0.483
+      }
+    }
+  },
+  "ocel:events": {
+    "place_o-990424": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2023-06-30T07:17:18+00:00",
+      "ocel:omap": [
+        "i-881734",
+        "o-990424"
+      ],
+      "ocel:vmap": {}
+    },
+    "confirm_o-990424": {
+      "ocel:activity": "confirm order",
+      "ocel:timestamp": "2023-06-30T09:34:37+00:00",
+      "ocel:omap": [
+        "i-881734",
+        "o-990424"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-881734": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-07-04T09:43:05+00:00",
+      "ocel:omap": [
+        "i-881734"
+      ],
+      "ocel:vmap": {}
+    },
+    "create_p-660247": {
+      "ocel:activity": "create package",
+      "ocel:timestamp": "2023-07-06T13:32:41+00:00",
+      "ocel:omap": [
+        "p-660247"
+      ],
+      "ocel:vmap": {}
+    },
+    "send_p-660247": {
+      "ocel:activity": "send package",
+      "ocel:timestamp": "2023-07-10T11:59:43+00:00",
+      "ocel:omap": [
+        "i-881734",
+        "p-660247"
+      ],
+      "ocel:vmap": {}
+    },
+    "deliver_p-660247": {
+      "ocel:activity": "package delivered",
+      "ocel:timestamp": "2023-07-11T09:46:09+00:00",
+      "ocel:omap": [
+        "i-881734",
+        "p-660247"
+      ],
+      "ocel:vmap": {}
+    },
+    "pay_o-990424": {
+      "ocel:activity": "pay order",
+      "ocel:timestamp": "2023-07-26T12:22:06+00:00",
+      "ocel:omap": [
+        "i-881734",
+        "o-990424"
+      ],
+      "ocel:vmap": {}
+    }
+  }
+}

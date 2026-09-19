@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml>
+  <net id="order_management_dopid" type="http://www.pnml.org/version-2009/grammar/pnmlcoremodel">
+    <page id="page1">
+      <name><text>Order management DOPID (curated from CPN)</text></name>
+
+      <!-- Fresh object pools.  Creation is silent; the first visible OCEL event
+           binds the created identity. -->
+      <place id="q_order_new" color="ORDER"><name><text>order new</text></name></place>
+      <place id="q_item_available" color="ITEM"><name><text>item available</text></name></place>
+      <place id="q_package_new" color="PACKAGE"><name><text>package new</text></name></place>
+
+      <!-- Order lifecycle. -->
+      <place id="q_order_after_place" color="ORDER"><name><text>order placed</text></name></place>
+      <place id="q_order_items" color="ORDER,ITEM"><name><text>order items</text></name></place>
+      <place id="q_order_confirmed" color="ORDER"><name><text>order confirmed</text></name></place>
+      <place id="q_order_paid" color="ORDER"><name><text>order paid</text></name><finalMarking><text>1</text></finalMarking></place>
+
+      <!-- Item lifecycle. -->
+      <place id="q_item_oos" color="ITEM"><name><text>item out of stock</text></name></place>
+      <place id="q_item_picked" color="ITEM"><name><text>item picked</text></name></place>
+
+      <!-- Package/item relation lifecycle. -->
+      <place id="q_package_ready" color="PACKAGE,ITEM"><name><text>package ready</text></name></place>
+      <place id="q_package_sent" color="PACKAGE,ITEM"><name><text>package sent</text></name></place>
+      <place id="q_package_delivered" color="PACKAGE,ITEM"><name><text>package delivered</text></name><finalMarking><text>1</text></finalMarking></place>
+
+      <transition id="create_order" invisible="true"><name><text>create order object</text></name></transition>
+      <transition id="create_item" invisible="true"><name><text>create item object</text></name></transition>
+      <transition id="create_package_object" invisible="true"><name><text>create package object</text></name></transition>
+
+      <transition id="place_order"><name><text>place order</text></name></transition>
+      <transition id="confirm_order"><name><text>confirm order</text></name></transition>
+      <transition id="pick_item"><name><text>pick item</text></name></transition>
+      <transition id="item_oos"><name><text>item out of stock</text></name></transition>
+      <transition id="reorder_item"><name><text>reorder item</text></name></transition>
+      <transition id="pay_order" guard="(price(o) == (sum(price(I)) + 5.0))"><name><text>pay order</text></name></transition>
+      <transition id="payment_reminder"><name><text>payment reminder</text></name></transition>
+      <transition id="create_package" guard="(weight(p) == sum(weight(I)))"><name><text>create package</text></name></transition>
+      <transition id="send_package"><name><text>send package</text></name></transition>
+      <transition id="package_delivered"><name><text>package delivered</text></name></transition>
+      <transition id="failed_delivery"><name><text>failed delivery</text></name></transition>
+
+      <arc source="create_order" target="q_order_new" inscription="nu:ORDER"/>
+      <arc source="create_item" target="q_item_available" inscription="nu:ITEM"/>
+      <arc source="create_package_object" target="q_package_new" inscription="nu:PACKAGE"/>
+
+      <!-- place order binds the order and exactly the event's item list, while
+           keeping the items independently available for stock/picking events. -->
+      <arc source="q_order_new" target="place_order" inscription="o:ORDER"/>
+      <arc source="q_item_available" target="place_order" inscription="I:ITEM LIST"/>
+      <arc source="place_order" target="q_order_after_place" inscription="o:ORDER"/>
+      <arc source="place_order" target="q_order_items" inscription="o:ORDER,I:ITEM LIST"/>
+      <arc source="place_order" target="q_item_available" inscription="I:ITEM LIST"/>
+
+      <!-- Confirmation uses the persistent order-item relation because the
+           OCEL confirmation event contains the order and all its items. -->
+      <arc source="q_order_after_place" target="confirm_order" inscription="o:ORDER"/>
+      <arc source="q_order_items" target="confirm_order" inscription="o:ORDER,I:ITEM LIST" synchronization="exact"/>
+      <arc source="confirm_order" target="q_order_confirmed" inscription="o:ORDER"/>
+      <arc source="confirm_order" target="q_order_items" inscription="o:ORDER,I:ITEM LIST"/>
+
+      <!-- Payment is independent from the item/package branch, as in the CPN.
+           The guard deliberately occurs late: it checks historical/static
+           object data after the order has already progressed. -->
+      <arc source="q_order_confirmed" target="pay_order" inscription="o:ORDER"/>
+      <arc source="q_order_items" target="pay_order" inscription="o:ORDER,I:ITEM LIST" synchronization="exact"/>
+      <arc source="pay_order" target="q_order_paid" inscription="o:ORDER"/>
+      <arc source="pay_order" target="q_order_items" inscription="o:ORDER,I:ITEM LIST"/>
+
+      <arc source="q_order_confirmed" target="payment_reminder" inscription="o:ORDER"/>
+      <arc source="q_order_items" target="payment_reminder" inscription="o:ORDER,I:ITEM LIST" synchronization="exact"/>
+      <arc source="payment_reminder" target="q_order_confirmed" inscription="o:ORDER"/>
+      <arc source="payment_reminder" target="q_order_items" inscription="o:ORDER,I:ITEM LIST"/>
+
+      <!-- Item stock loop. -->
+      <arc source="q_item_available" target="pick_item" inscription="i:ITEM"/>
+      <arc source="pick_item" target="q_item_picked" inscription="i:ITEM"/>
+      <arc source="q_item_available" target="item_oos" inscription="i:ITEM"/>
+      <arc source="item_oos" target="q_item_oos" inscription="i:ITEM"/>
+      <arc source="q_item_oos" target="reorder_item" inscription="i:ITEM"/>
+      <arc source="reorder_item" target="q_item_available" inscription="i:ITEM"/>
+
+      <!-- A package may combine picked items from different orders.  This is
+           the important object-centric component-merging behavior of the log. -->
+      <arc source="q_package_new" target="create_package" inscription="p:PACKAGE"/>
+      <arc source="q_item_picked" target="create_package" inscription="I:ITEM LIST"/>
+      <arc source="create_package" target="q_package_ready" inscription="p:PACKAGE,I:ITEM LIST"/>
+
+      <arc source="q_package_ready" target="send_package" inscription="p:PACKAGE,I:ITEM LIST" synchronization="exact"/>
+      <arc source="send_package" target="q_package_sent" inscription="p:PACKAGE,I:ITEM LIST"/>
+      <arc source="q_package_sent" target="package_delivered" inscription="p:PACKAGE,I:ITEM LIST" synchronization="exact"/>
+      <arc source="package_delivered" target="q_package_delivered" inscription="p:PACKAGE,I:ITEM LIST"/>
+      <arc source="q_package_sent" target="failed_delivery" inscription="p:PACKAGE,I:ITEM LIST" synchronization="exact"/>
+      <arc source="failed_delivery" target="q_package_sent" inscription="p:PACKAGE,I:ITEM LIST"/>
+    </page>
+    <variables/>
+  </net>
+</pnml>

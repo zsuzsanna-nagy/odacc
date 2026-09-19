@@ -1,0 +1,13 @@
+{
+  "source_components": 34,
+  "mutations": 182,
+  "by_type": {
+    "wrong_package_weight": 34,
+    "wrong_order_price": 34,
+    "remove_pick_event": 34,
+    "duplicate_pick_event": 34,
+    "remove_item_relation_from_create_package": 34,
+    "add_unrelated_item_relation_to_create_package": 12
+  },
+  "important_note": "nominal_single_deviation_cost is the intended injected deviation count, not a proven alignment optimum. Validate optimum/cost decomposition with both JODAP and SMT before using it as ground truth."
+}

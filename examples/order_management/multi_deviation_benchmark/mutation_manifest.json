@@ -1,0 +1,2490 @@
+[
+  {
+    "case_id": "two_mixed_001",
+    "family": "two_mixed",
+    "source_file": "component_032_events_0007_objects_0003.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_032_events_0007_objects_0003__two_mixed_001.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-881734",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660247",
+        "target_object": "p-660247",
+        "details": "package weight 0.483 -> 0.62",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_002",
+    "family": "two_mixed",
+    "source_file": "component_061_events_0007_objects_0003.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_061_events_0007_objects_0003__two_mixed_002.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991749",
+        "target_object": "o-991749",
+        "details": "order price 240.71 -> 248.02",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660997",
+        "target_object": "i-886773",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_003",
+    "family": "two_mixed",
+    "source_file": "component_038_events_0008_objects_0004.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_038_events_0008_objects_0004__two_mixed_003.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990878",
+        "target_object": "o-990878",
+        "details": "order price 2753.27 -> 2760.58",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660508",
+        "target_object": "i-883511",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_004",
+    "family": "two_mixed",
+    "source_file": "component_050_events_0008_objects_0004.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_050_events_0008_objects_0004__two_mixed_004.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-885088__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-885088",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660730",
+        "target_object": "p-660730",
+        "details": "package weight 1.19 -> 1.327",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_005",
+    "family": "two_mixed",
+    "source_file": "component_031_events_0009_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_031_events_0009_objects_0005__two_mixed_005.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-881580__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-881580",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660218",
+        "target_object": "p-660218",
+        "details": "package weight 1.843 -> 1.98",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_006",
+    "family": "two_mixed",
+    "source_file": "component_042_events_0009_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_042_events_0009_objects_0005__two_mixed_006.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+extra_pick",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990916",
+        "target_object": "o-990916",
+        "details": "order price 966.88 -> 974.1899999999999",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-883672__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-883672",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_007",
+    "family": "two_mixed",
+    "source_file": "component_058_events_0009_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_058_events_0009_objects_0005__two_mixed_007.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886382",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660924",
+        "target_object": "p-660924",
+        "details": "package weight 3.06 -> 3.197",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_008",
+    "family": "two_mixed",
+    "source_file": "component_068_events_0009_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_068_events_0009_objects_0005__two_mixed_008.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991982",
+        "target_object": "o-991982",
+        "details": "order price 264.24 -> 271.55",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-661114",
+        "target_object": "i-887596",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_009",
+    "family": "two_mixed",
+    "source_file": "component_024_events_0010_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_024_events_0010_objects_0005__two_mixed_009.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990077",
+        "target_object": "o-990077",
+        "details": "order price 2452.99 -> 2460.2999999999997",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660040",
+        "target_object": "i-880326",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_010",
+    "family": "two_mixed",
+    "source_file": "component_059_events_0010_objects_0006.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_059_events_0010_objects_0006__two_mixed_010.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886562__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-886562",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660955",
+        "target_object": "p-660955",
+        "details": "package weight 1.626 -> 1.763",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_011",
+    "family": "two_mixed",
+    "source_file": "component_048_events_0011_objects_0007.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_048_events_0011_objects_0007__two_mixed_011.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-884547__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-884547",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660649",
+        "target_object": "p-660649",
+        "details": "package weight 3.11 -> 3.247",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_012",
+    "family": "two_mixed",
+    "source_file": "component_051_events_0011_objects_0007.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_051_events_0011_objects_0007__two_mixed_012.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+extra_pick",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991324",
+        "target_object": "o-991324",
+        "details": "order price 2187.17 -> 2194.48",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-885234__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-885234",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_013",
+    "family": "two_mixed",
+    "source_file": "component_057_events_0011_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_057_events_0011_objects_0005__two_mixed_013.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886011",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660867",
+        "target_object": "p-660867",
+        "details": "package weight 1.363 -> 1.5",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_014",
+    "family": "two_mixed",
+    "source_file": "component_066_events_0011_objects_0006.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_066_events_0011_objects_0006__two_mixed_014.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991925",
+        "target_object": "o-991925",
+        "details": "order price 3340.39 -> 3347.7",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-661076",
+        "target_object": "i-887399",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_015",
+    "family": "two_mixed",
+    "source_file": "component_028_events_0012_objects_0008.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_028_events_0012_objects_0008__two_mixed_015.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990241",
+        "target_object": "o-990241",
+        "details": "order price 4921.98 -> 4929.29",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660133",
+        "target_object": "i-881000",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_016",
+    "family": "two_mixed",
+    "source_file": "component_037_events_0012_objects_0006.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_037_events_0012_objects_0006__two_mixed_016.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-882309__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-882309",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660318",
+        "target_object": "p-660318",
+        "details": "package weight 1.513 -> 1.65",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_017",
+    "family": "two_mixed",
+    "source_file": "component_004_events_0013_objects_0009.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_004_events_0013_objects_0009__two_mixed_017.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880029__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-880029",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660004",
+        "target_object": "p-660004",
+        "details": "package weight 5.247 -> 5.384",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_018",
+    "family": "two_mixed",
+    "source_file": "component_021_events_0013_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_021_events_0013_objects_0005__two_mixed_018.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+extra_pick",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990046",
+        "target_object": "o-990046",
+        "details": "order price 3304.0 -> 3311.31",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880196__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-880196",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_019",
+    "family": "two_mixed",
+    "source_file": "component_009_events_0015_objects_0008.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_009_events_0015_objects_0008__two_mixed_019.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880062",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660009",
+        "target_object": "p-660009",
+        "details": "package weight 1.21 -> 1.347",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_020",
+    "family": "two_mixed",
+    "source_file": "component_036_events_0017_objects_0008.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_036_events_0017_objects_0008__two_mixed_020.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990534",
+        "target_object": "o-990534",
+        "details": "order price 1230.14 -> 1237.45",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660296",
+        "target_object": "i-882143",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_021",
+    "family": "two_mixed",
+    "source_file": "component_029_events_0021_objects_0010.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_029_events_0021_objects_0010__two_mixed_021.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990254",
+        "target_object": "o-990254",
+        "details": "order price 3908.99 -> 3916.2999999999997",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660144",
+        "target_object": "i-881049",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_022",
+    "family": "two_mixed",
+    "source_file": "component_003_events_0022_objects_0011.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_003_events_0022_objects_0011__two_mixed_022.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+extra_relation",
+    "dimensions": "control_flow+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880014",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660002",
+        "target_object": "i-880016",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_023",
+    "family": "two_mixed",
+    "source_file": "component_020_events_0022_objects_0009.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_020_events_0022_objects_0009__two_mixed_023.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880184__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-880184",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660027",
+        "target_object": "p-660027",
+        "details": "package weight 5.656 -> 5.792999999999999",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_024",
+    "family": "two_mixed",
+    "source_file": "component_002_events_0028_objects_0013.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_002_events_0028_objects_0013__two_mixed_024.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+extra_pick",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990014",
+        "target_object": "o-990014",
+        "details": "order price 1098.99 -> 1106.3",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880008__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-880008",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_025",
+    "family": "two_mixed",
+    "source_file": "component_011_events_0028_objects_0017.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_011_events_0028_objects_0017__two_mixed_025.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880074",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660011",
+        "target_object": "p-660011",
+        "details": "package weight 7.113 -> 7.25",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_026",
+    "family": "two_mixed",
+    "source_file": "component_001_events_0030_objects_0020.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_001_events_0030_objects_0020__two_mixed_026.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990005",
+        "target_object": "o-990005",
+        "details": "order price 3049.98 -> 3057.29",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660001",
+        "target_object": "i-880001",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_027",
+    "family": "two_mixed",
+    "source_file": "component_006_events_0031_objects_0015.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_006_events_0031_objects_0015__two_mixed_027.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990027",
+        "target_object": "o-990027",
+        "details": "order price 630.99 -> 638.3",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660006",
+        "target_object": "i-880044",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_028",
+    "family": "two_mixed",
+    "source_file": "component_005_events_0035_objects_0016.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_005_events_0035_objects_0016__two_mixed_028.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+extra_relation",
+    "dimensions": "control_flow+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880035",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660005",
+        "target_object": "i-880036",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_029",
+    "family": "two_mixed",
+    "source_file": "component_063_events_0035_objects_0019.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_063_events_0035_objects_0019__two_mixed_029.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886922__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-886922",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-661003",
+        "target_object": "p-661003",
+        "details": "package weight 5.838 -> 5.975",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_030",
+    "family": "two_mixed",
+    "source_file": "component_030_events_0061_objects_0033.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_030_events_0061_objects_0033__two_mixed_030.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+extra_pick",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990338",
+        "target_object": "o-990338",
+        "details": "order price 512.37 -> 519.68",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-881602__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-881602",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_031",
+    "family": "two_mixed",
+    "source_file": "component_067_events_0063_objects_0031.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_067_events_0063_objects_0031__two_mixed_031.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+package_weight",
+    "dimensions": "control_flow+data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887566",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-661091",
+        "target_object": "p-661091",
+        "details": "package weight 1.923 -> 2.06",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_032",
+    "family": "two_mixed",
+    "source_file": "component_065_events_0098_objects_0050.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_065_events_0098_objects_0050__two_mixed_032.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+extra_relation",
+    "dimensions": "control_flow+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887540__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-887540",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-661073",
+        "target_object": "i-887362",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_033",
+    "family": "two_mixed",
+    "source_file": "component_014_events_0102_objects_0053.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_014_events_0102_objects_0053__two_mixed_033.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "order_price+missing_relation",
+    "dimensions": "data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990020",
+        "target_object": "o-990020",
+        "details": "order price 1319.99 -> 1327.3",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660015",
+        "target_object": "i-880092",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_mixed_034",
+    "family": "two_mixed",
+    "source_file": "component_064_events_0116_objects_0055.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_mixed/component_064_events_0116_objects_0055__two_mixed_034.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+extra_relation",
+    "dimensions": "control_flow+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887302",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-661037",
+        "target_object": "i-887121",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_035",
+    "family": "two_same_dimension",
+    "source_file": "component_032_events_0007_objects_0003.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_032_events_0007_objects_0003__two_same_dimension_035.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+extra_pick",
+    "dimensions": "control_flow",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-881734__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-881734",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-881734__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-881734",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_036",
+    "family": "two_same_dimension",
+    "source_file": "component_050_events_0008_objects_0004.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_050_events_0008_objects_0004__two_same_dimension_036.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+extra_pick",
+    "dimensions": "control_flow",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-885088__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-885088",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-885088__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-885088",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_037",
+    "family": "two_same_dimension",
+    "source_file": "component_058_events_0009_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_058_events_0009_objects_0005__two_same_dimension_037.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "package_weight+order_price",
+    "dimensions": "data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660924",
+        "target_object": "p-660924",
+        "details": "package weight 3.06 -> 3.197",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991630",
+        "target_object": "o-991630",
+        "details": "order price 3634.39 -> 3641.7",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_038",
+    "family": "two_same_dimension",
+    "source_file": "component_059_events_0010_objects_0006.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_059_events_0010_objects_0006__two_same_dimension_038.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_relation+missing_relation",
+    "dimensions": "object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660955",
+        "target_object": "i-886559",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660955",
+        "target_object": "i-886561",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_039",
+    "family": "two_same_dimension",
+    "source_file": "component_057_events_0011_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_057_events_0011_objects_0005__two_same_dimension_039.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+missing_pick",
+    "dimensions": "control_flow",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886011",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886010",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_040",
+    "family": "two_same_dimension",
+    "source_file": "component_037_events_0012_objects_0006.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_037_events_0012_objects_0006__two_same_dimension_040.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+missing_pick",
+    "dimensions": "control_flow",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-882309",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-882307",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_041",
+    "family": "two_same_dimension",
+    "source_file": "component_009_events_0015_objects_0008.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_009_events_0015_objects_0008__two_same_dimension_041.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+extra_pick",
+    "dimensions": "control_flow",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880062__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-880062",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880063__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-880063",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_042",
+    "family": "two_same_dimension",
+    "source_file": "component_003_events_0022_objects_0011.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_003_events_0022_objects_0011__two_same_dimension_042.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "package_weight+order_price",
+    "dimensions": "data",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660002",
+        "target_object": "p-660002",
+        "details": "package weight 3.125 -> 3.262",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990004",
+        "target_object": "o-990004",
+        "details": "order price 2241.95 -> 2249.2599999999998",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_043",
+    "family": "two_same_dimension",
+    "source_file": "component_011_events_0028_objects_0017.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_011_events_0028_objects_0017__two_same_dimension_043.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_relation+missing_relation",
+    "dimensions": "object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660011",
+        "target_object": "i-880072",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660011",
+        "target_object": "i-880074",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_044",
+    "family": "two_same_dimension",
+    "source_file": "component_005_events_0035_objects_0016.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_005_events_0035_objects_0016__two_same_dimension_044.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_relation+extra_relation",
+    "dimensions": "object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660005",
+        "target_object": "i-880036",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660016",
+        "target_object": "i-880034",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_045",
+    "family": "two_same_dimension",
+    "source_file": "component_067_events_0063_objects_0031.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_067_events_0063_objects_0031__two_same_dimension_045.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "missing_pick+missing_pick",
+    "dimensions": "control_flow",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887566",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887653",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "two_same_dimension_046",
+    "family": "two_same_dimension",
+    "source_file": "component_064_events_0116_objects_0055.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/two_same_dimension/component_064_events_0116_objects_0055__two_same_dimension_046.jsonocel",
+    "injected_deviation_count": 2,
+    "mutation_kinds": "extra_pick+extra_pick",
+    "dimensions": "control_flow",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887302__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-887302",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887519__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-887519",
+        "ordinal": 2
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_047",
+    "family": "three_mixed",
+    "source_file": "component_032_events_0007_objects_0003.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_032_events_0007_objects_0003__three_mixed_047.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-881734__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-881734",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990424",
+        "target_object": "o-990424",
+        "details": "order price 528.26 -> 535.5699999999999",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660247",
+        "target_object": "i-881734",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_048",
+    "family": "three_mixed",
+    "source_file": "component_038_events_0008_objects_0004.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_038_events_0008_objects_0004__three_mixed_048.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-883511__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-883511",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990878",
+        "target_object": "o-990878",
+        "details": "order price 2753.27 -> 2760.58",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660508",
+        "target_object": "i-883511",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_049",
+    "family": "three_mixed",
+    "source_file": "component_050_events_0008_objects_0004.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_050_events_0008_objects_0004__three_mixed_049.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "missing_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-885088",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991284",
+        "target_object": "o-991284",
+        "details": "order price 728.38 -> 735.6899999999999",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660730",
+        "target_object": "i-885087",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_050",
+    "family": "three_mixed",
+    "source_file": "component_042_events_0009_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_042_events_0009_objects_0005__three_mixed_050.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-883672__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-883672",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990916",
+        "target_object": "o-990916",
+        "details": "order price 966.88 -> 974.1899999999999",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660528",
+        "target_object": "i-883672",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_051",
+    "family": "three_mixed",
+    "source_file": "component_068_events_0009_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_068_events_0009_objects_0005__three_mixed_051.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887597__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-887597",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991982",
+        "target_object": "o-991982",
+        "details": "order price 264.24 -> 271.55",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-661114",
+        "target_object": "i-887596",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_052",
+    "family": "three_mixed",
+    "source_file": "component_059_events_0010_objects_0006.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_059_events_0010_objects_0006__three_mixed_052.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886562__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-886562",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991686",
+        "target_object": "o-991686",
+        "details": "order price 1959.11 -> 1966.4199999999998",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660955",
+        "target_object": "i-886559",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_053",
+    "family": "three_mixed",
+    "source_file": "component_048_events_0011_objects_0007.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_048_events_0011_objects_0007__three_mixed_053.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "missing_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-884547",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991144",
+        "target_object": "o-991144",
+        "details": "order price 3023.63 -> 3030.94",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660649",
+        "target_object": "i-884544",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_054",
+    "family": "three_mixed",
+    "source_file": "component_057_events_0011_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_057_events_0011_objects_0005__three_mixed_054.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886011__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-886011",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991520",
+        "target_object": "o-991520",
+        "details": "order price 1631.42 -> 1638.73",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660867",
+        "target_object": "i-886010",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_055",
+    "family": "three_mixed",
+    "source_file": "component_028_events_0012_objects_0008.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_028_events_0012_objects_0008__three_mixed_055.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-881005__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-881005",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990241",
+        "target_object": "o-990241",
+        "details": "order price 4921.98 -> 4929.29",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660133",
+        "target_object": "i-881000",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_056",
+    "family": "three_mixed",
+    "source_file": "component_004_events_0013_objects_0009.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_004_events_0013_objects_0009__three_mixed_056.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880029__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-880029",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990006",
+        "target_object": "o-990006",
+        "details": "order price 5732.98 -> 5740.29",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660004",
+        "target_object": "i-880026",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_057",
+    "family": "three_mixed",
+    "source_file": "component_021_events_0013_objects_0005.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_021_events_0013_objects_0005__three_mixed_057.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "missing_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880196",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990046",
+        "target_object": "o-990046",
+        "details": "order price 3304.0 -> 3311.31",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660032",
+        "target_object": "i-880196",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_058",
+    "family": "three_mixed",
+    "source_file": "component_036_events_0017_objects_0008.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_036_events_0017_objects_0008__three_mixed_058.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-882182__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-882182",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990534",
+        "target_object": "o-990534",
+        "details": "order price 1230.14 -> 1237.45",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660296",
+        "target_object": "i-882143",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_059",
+    "family": "three_mixed",
+    "source_file": "component_003_events_0022_objects_0011.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_003_events_0022_objects_0011__three_mixed_059.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "missing_pick+package_weight+extra_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880014",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660002",
+        "target_object": "p-660002",
+        "details": "package weight 3.125 -> 3.262",
+        "ordinal": 2
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660002",
+        "target_object": "i-880016",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_060",
+    "family": "three_mixed",
+    "source_file": "component_002_events_0028_objects_0013.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_002_events_0028_objects_0013__three_mixed_060.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880008__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-880008",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990014",
+        "target_object": "o-990014",
+        "details": "order price 1098.99 -> 1106.3",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660003",
+        "target_object": "i-880008",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_061",
+    "family": "three_mixed",
+    "source_file": "component_011_events_0028_objects_0017.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_011_events_0028_objects_0017__three_mixed_061.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "missing_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880074",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990019",
+        "target_object": "o-990019",
+        "details": "order price 1498.99 -> 1506.3",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660011",
+        "target_object": "i-880072",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_062",
+    "family": "three_mixed",
+    "source_file": "component_006_events_0031_objects_0015.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_006_events_0031_objects_0015__three_mixed_062.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+package_weight+extra_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880048__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-880048",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660006",
+        "target_object": "p-660006",
+        "details": "package weight 2.699 -> 2.836",
+        "ordinal": 2
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660006",
+        "target_object": "i-880046",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_063",
+    "family": "three_mixed",
+    "source_file": "component_063_events_0035_objects_0019.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_063_events_0035_objects_0019__three_mixed_063.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "missing_pick+package_weight+extra_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886922",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-661003",
+        "target_object": "p-661003",
+        "details": "package weight 5.838 -> 5.975",
+        "ordinal": 2
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-661003",
+        "target_object": "i-886892",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_064",
+    "family": "three_mixed",
+    "source_file": "component_067_events_0063_objects_0031.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_067_events_0063_objects_0031__three_mixed_064.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887566__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-887566",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991942",
+        "target_object": "o-991942",
+        "details": "order price 1459.38 -> 1466.69",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-661091",
+        "target_object": "i-887450",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_065",
+    "family": "three_mixed",
+    "source_file": "component_065_events_0098_objects_0050.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_065_events_0098_objects_0050__three_mixed_065.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "missing_pick+order_price+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887540",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991916",
+        "target_object": "o-991916",
+        "details": "order price 5517.32 -> 5524.63",
+        "ordinal": 2
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-661073",
+        "target_object": "i-887363",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "three_mixed_066",
+    "family": "three_mixed",
+    "source_file": "component_064_events_0116_objects_0055.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/three_mixed/component_064_events_0116_objects_0055__three_mixed_066.jsonocel",
+    "injected_deviation_count": 3,
+    "mutation_kinds": "extra_pick+package_weight+extra_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887302__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-887302",
+        "ordinal": 1
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-661037",
+        "target_object": "p-661037",
+        "details": "package weight 10.484 -> 10.621",
+        "ordinal": 2
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-661037",
+        "target_object": "i-887121",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 3
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_067",
+    "family": "stress_4_5",
+    "source_file": "component_051_events_0011_objects_0007.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_051_events_0011_objects_0007__stress_4_5_067.jsonocel",
+    "injected_deviation_count": 4,
+    "mutation_kinds": "missing_pick+extra_pick+package_weight+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-885234",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-885233__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-885233",
+        "ordinal": 2
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660751",
+        "target_object": "p-660751",
+        "details": "package weight 3.908 -> 4.045",
+        "ordinal": 3
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660751",
+        "target_object": "i-885232",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 4
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_068",
+    "family": "stress_4_5",
+    "source_file": "component_066_events_0011_objects_0006.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_066_events_0011_objects_0006__stress_4_5_068.jsonocel",
+    "injected_deviation_count": 5,
+    "mutation_kinds": "missing_pick+missing_pick+package_weight+missing_relation+extra_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887399",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887401",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 2
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-661076",
+        "target_object": "p-661076",
+        "details": "package weight 3.913 -> 4.05",
+        "ordinal": 3
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-661076",
+        "target_object": "i-887399",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 4
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-661076",
+        "target_object": "i-887399",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 5
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_069",
+    "family": "stress_4_5",
+    "source_file": "component_004_events_0013_objects_0009.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_004_events_0013_objects_0009__stress_4_5_069.jsonocel",
+    "injected_deviation_count": 5,
+    "mutation_kinds": "missing_pick+missing_pick+package_weight+missing_relation+extra_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880029",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880026",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 2
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660004",
+        "target_object": "p-660004",
+        "details": "package weight 5.247 -> 5.384",
+        "ordinal": 3
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660004",
+        "target_object": "i-880026",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 4
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660004",
+        "target_object": "i-880026",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 5
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_070",
+    "family": "stress_4_5",
+    "source_file": "component_009_events_0015_objects_0008.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_009_events_0015_objects_0008__stress_4_5_070.jsonocel",
+    "injected_deviation_count": 5,
+    "mutation_kinds": "extra_pick+extra_pick+order_price+missing_relation+extra_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880062__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-880062",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880063__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-880063",
+        "ordinal": 2
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990013",
+        "target_object": "o-990013",
+        "details": "order price 3349.99 -> 3357.2999999999997",
+        "ordinal": 3
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660009",
+        "target_object": "i-880060",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 4
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660009",
+        "target_object": "i-880060",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 5
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_071",
+    "family": "stress_4_5",
+    "source_file": "component_003_events_0022_objects_0011.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_003_events_0022_objects_0011__stress_4_5_071.jsonocel",
+    "injected_deviation_count": 4,
+    "mutation_kinds": "missing_pick+extra_pick+package_weight+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880014",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880019__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-880019",
+        "ordinal": 2
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660002",
+        "target_object": "p-660002",
+        "details": "package weight 3.125 -> 3.262",
+        "ordinal": 3
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660002",
+        "target_object": "i-880013",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 4
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_072",
+    "family": "stress_4_5",
+    "source_file": "component_002_events_0028_objects_0013.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_002_events_0028_objects_0013__stress_4_5_072.jsonocel",
+    "injected_deviation_count": 4,
+    "mutation_kinds": "missing_pick+order_price+extra_relation+extra_pick",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880008",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-990014",
+        "target_object": "o-990014",
+        "details": "order price 1098.99 -> 1106.3",
+        "ordinal": 2
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660003",
+        "target_object": "i-880007",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 3
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880010__multi_extra_4",
+        "target_object": "",
+        "details": "duplicate of pick_i-880010",
+        "ordinal": 4
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_073",
+    "family": "stress_4_5",
+    "source_file": "component_006_events_0031_objects_0015.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_006_events_0031_objects_0015__stress_4_5_073.jsonocel",
+    "injected_deviation_count": 5,
+    "mutation_kinds": "missing_pick+missing_pick+package_weight+missing_relation+extra_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880048",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-880050",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 2
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-660006",
+        "target_object": "p-660006",
+        "details": "package weight 2.699 -> 2.836",
+        "ordinal": 3
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-660006",
+        "target_object": "i-880044",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 4
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-660006",
+        "target_object": "i-880044",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 5
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_074",
+    "family": "stress_4_5",
+    "source_file": "component_063_events_0035_objects_0019.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_063_events_0035_objects_0019__stress_4_5_074.jsonocel",
+    "injected_deviation_count": 5,
+    "mutation_kinds": "extra_pick+extra_pick+order_price+missing_relation+extra_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886922__multi_extra_1",
+        "target_object": "",
+        "details": "duplicate of pick_i-886922",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-886921__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-886921",
+        "ordinal": 2
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991784",
+        "target_object": "o-991784",
+        "details": "order price 946.7 -> 954.01",
+        "ordinal": 3
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-661003",
+        "target_object": "i-886882",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 4
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-661003",
+        "target_object": "i-886882",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 5
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_075",
+    "family": "stress_4_5",
+    "source_file": "component_065_events_0098_objects_0050.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_065_events_0098_objects_0050__stress_4_5_075.jsonocel",
+    "injected_deviation_count": 4,
+    "mutation_kinds": "missing_pick+extra_pick+package_weight+missing_relation",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887540",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887558__multi_extra_2",
+        "target_object": "",
+        "details": "duplicate of pick_i-887558",
+        "ordinal": 2
+      },
+      {
+        "kind": "package_weight",
+        "dimension": "data",
+        "target_event": "create_p-661073",
+        "target_object": "p-661073",
+        "details": "package weight 4.509 -> 4.646000000000001",
+        "ordinal": 3
+      },
+      {
+        "kind": "missing_relation",
+        "dimension": "object",
+        "target_event": "create_p-661073",
+        "target_object": "i-887363",
+        "details": "removed ITEM relation from create package",
+        "ordinal": 4
+      }
+    ]
+  },
+  {
+    "case_id": "stress_4_5_076",
+    "family": "stress_4_5",
+    "source_file": "component_064_events_0116_objects_0055.jsonocel",
+    "mutated_file": "/mnt/data/multi_deviation_benchmark/stress_4_5/component_064_events_0116_objects_0055__stress_4_5_076.jsonocel",
+    "injected_deviation_count": 4,
+    "mutation_kinds": "missing_pick+order_price+extra_relation+extra_pick",
+    "dimensions": "control_flow+data+object",
+    "expected_optimum": "TO_VALIDATE_WITH_JODAP_AND_SMT",
+    "mutations": [
+      {
+        "kind": "missing_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887302",
+        "target_object": "",
+        "details": "removed pick item event",
+        "ordinal": 1
+      },
+      {
+        "kind": "order_price",
+        "dimension": "data",
+        "target_event": "pay_o-991865",
+        "target_object": "o-991865",
+        "details": "order price 934.9 -> 942.2099999999999",
+        "ordinal": 2
+      },
+      {
+        "kind": "extra_relation",
+        "dimension": "object",
+        "target_event": "create_p-661037",
+        "target_object": "i-887121",
+        "details": "added unrelated existing ITEM relation to create package",
+        "ordinal": 3
+      },
+      {
+        "kind": "extra_pick",
+        "dimension": "control_flow",
+        "target_event": "pick_i-887305__multi_extra_4",
+        "target_object": "",
+        "details": "duplicate of pick_i-887305",
+        "ordinal": 4
+      }
+    ]
+  }
+]

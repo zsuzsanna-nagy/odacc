@@ -1,0 +1,18 @@
+{
+  "source_components": 34,
+  "generated_cases": 76,
+  "by_family": {
+    "two_mixed": 34,
+    "two_same_dimension": 12,
+    "three_mixed": 20,
+    "stress_4_5": 10
+  },
+  "correctness_rule": "Injected deviation count is NOT ground truth. A result is correct if it is feasible and has globally minimal total cost. Co-optimal alignments with different CF/data/object decompositions are accepted.",
+  "recommended_order": [
+    "two_mixed",
+    "two_same_dimension",
+    "three_mixed",
+    "stress_4_5"
+  ],
+  "smt_note": "Use SMT on a representative size-stratified subset first; expand while runtime remains practical."
+}

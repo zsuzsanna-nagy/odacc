@@ -1,0 +1,180 @@
+{
+  "ocel:global-log": {
+    "ocel:version": "1.0",
+    "ocel:ordering": "timestamp"
+  },
+  "ocel:global-event": {},
+  "ocel:global-object": {},
+  "ocel:objects": {
+    "i-882307": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 503.18,
+        "weight": 0.44
+      }
+    },
+    "i-882308": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 31.7,
+        "weight": 0.38
+      }
+    },
+    "i-882309": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 523.26,
+        "weight": 0.483
+      }
+    },
+    "i-882310": {
+      "ocel:type": "ITEM",
+      "ocel:ovmap": {
+        "price": 559.21,
+        "weight": 0.21
+      }
+    },
+    "o-990566": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "price": 1622.35
+      }
+    },
+    "p-660318": {
+      "ocel:type": "PACKAGE",
+      "ocel:ovmap": {
+        "weight": 1.513
+      }
+    }
+  },
+  "ocel:events": {
+    "place_o-990566": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2023-07-25T08:27:05+00:00",
+      "ocel:omap": [
+        "i-882307",
+        "i-882308",
+        "i-882309",
+        "i-882310",
+        "o-990566"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-882308": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-07-25T13:10:54+00:00",
+      "ocel:omap": [
+        "i-882308"
+      ],
+      "ocel:vmap": {}
+    },
+    "confirm_o-990566": {
+      "ocel:activity": "confirm order",
+      "ocel:timestamp": "2023-07-25T20:00:00+00:00",
+      "ocel:omap": [
+        "i-882307",
+        "i-882308",
+        "i-882309",
+        "i-882310",
+        "o-990566"
+      ],
+      "ocel:vmap": {}
+    },
+    "out_of_stock_i-882310": {
+      "ocel:activity": "item out of stock",
+      "ocel:timestamp": "2023-07-26T07:19:04+00:00",
+      "ocel:omap": [
+        "i-882310"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-882309": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-07-26T09:46:57+00:00",
+      "ocel:omap": [
+        "i-882309"
+      ],
+      "ocel:vmap": {}
+    },
+    "reorder_i-882310": {
+      "ocel:activity": "reorder item",
+      "ocel:timestamp": "2023-07-26T13:11:33+00:00",
+      "ocel:omap": [
+        "i-882310"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-882307": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-07-26T14:15:03+00:00",
+      "ocel:omap": [
+        "i-882307"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-882310": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-07-27T08:10:48+00:00",
+      "ocel:omap": [
+        "i-882310"
+      ],
+      "ocel:vmap": {}
+    },
+    "create_p-660318": {
+      "ocel:activity": "create package",
+      "ocel:timestamp": "2023-07-28T06:43:06+00:00",
+      "ocel:omap": [
+        "i-882307",
+        "i-882308",
+        "i-882309",
+        "i-882310",
+        "p-660318"
+      ],
+      "ocel:vmap": {}
+    },
+    "send_p-660318": {
+      "ocel:activity": "send package",
+      "ocel:timestamp": "2023-07-28T10:38:19+00:00",
+      "ocel:omap": [
+        "i-882307",
+        "i-882308",
+        "i-882309",
+        "i-882310",
+        "p-660318"
+      ],
+      "ocel:vmap": {}
+    },
+    "deliver_p-660318": {
+      "ocel:activity": "package delivered",
+      "ocel:timestamp": "2023-07-28T14:37:38+00:00",
+      "ocel:omap": [
+        "i-882307",
+        "i-882308",
+        "i-882309",
+        "i-882310",
+        "p-660318"
+      ],
+      "ocel:vmap": {}
+    },
+    "pay_o-990566": {
+      "ocel:activity": "pay order",
+      "ocel:timestamp": "2023-08-02T09:31:36+00:00",
+      "ocel:omap": [
+        "i-882307",
+        "i-882308",
+        "i-882309",
+        "i-882310",
+        "o-990566"
+      ],
+      "ocel:vmap": {}
+    },
+    "pick_i-882307__controlled_extra": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2023-07-26T14:15:03.000001+00:00",
+      "ocel:omap": [
+        "i-882307"
+      ],
+      "ocel:vmap": {}
+    }
+  }
+}
