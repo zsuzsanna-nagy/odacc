@@ -1,0 +1,4 @@
+# ODACC / CoCoMoT dependencies used by the Z3-based experiments
+z3-solver
+pm4py
+pyparsing
