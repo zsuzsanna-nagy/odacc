@@ -1,0 +1,85 @@
+{
+  "name": "order-management",
+  "description": "ODACC/DOPID perspective for the OCEL 2.0 order-management log. Shared products, customers and employees are kept out of the conformance perspective to avoid global components; ORDER/ITEM/PACKAGE retain the object-centric package-merging behavior.",
+  "core_object_types": [
+    "orders",
+    "items",
+    "packages"
+  ],
+  "object_type_map": {
+    "orders": "ORDER",
+    "items": "ITEM",
+    "packages": "PACKAGE"
+  },
+  "activity_map": {
+    "place order": "place order",
+    "confirm order": "confirm order",
+    "pick item": "pick item",
+    "item out of stock": "item out of stock",
+    "reorder item": "reorder item",
+    "create package": "create package",
+    "pay order": "pay order",
+    "payment reminder": "payment reminder",
+    "send package": "send package",
+    "package delivered": "package delivered",
+    "failed delivery": "failed delivery"
+  },
+  "object_attribute_map": {
+    "orders": {
+      "price": "price"
+    },
+    "items": {
+      "price": "price",
+      "weight": "weight"
+    },
+    "packages": {
+      "weight": "weight"
+    }
+  },
+  "cpn_transition_map": {
+    "place order": "place order",
+    "confirm order": "confirm order",
+    "pick item": "pick item",
+    "out of stock": "item out of stock",
+    "reorder": "reorder item",
+    "create package": "create package",
+    "pay": "pay order",
+    "reminder": "payment reminder",
+    "send package": "send package",
+    "delivery": "package delivered",
+    "failed delivery": "failed delivery"
+  },
+  "cpn_ignored_transitions": [
+    "generator",
+    "open log file",
+    "create case",
+    "trigger",
+    "add price",
+    "add item",
+    "initialize product",
+    "initialize customer",
+    "initialize employees",
+    "inflation event",
+    "delete old info",
+    "apply update",
+    "update inflation",
+    "schedule next",
+    "(route)",
+    "select",
+    "select bypass",
+    "Pick Salesperson",
+    "end order",
+    "end package",
+    "check stock"
+  ],
+  "guard_design": {
+    "pay order": "(price(o) == (sum(price(I)) + 5.0))",
+    "create package": "(weight(p) == sum(weight(I)))"
+  },
+  "notes": [
+    "The CPN probabilistic guards fbool(...) are simulation-routing choices and are intentionally not translated to conformance guards.",
+    "The CPN package weight is computed by fweights(its); the DOPID therefore checks package weight against the sum of the selected item weights.",
+    "The OCEL generator has order.price = sum(item.price) + 5.0, so the pay-order guard is a meaningful late data-consistency check.",
+    "Product, customer and employee objects are contextual/global resources. Excluding them from the conformance perspective prevents unrelated orders from becoming one giant component merely because they share a product or employee."
+  ]
+}
