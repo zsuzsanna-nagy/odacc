@@ -1,0 +1,963 @@
+{
+  "ocel:global-log": {
+    "ocel:attribute-names": [
+      "vip",
+      "budget",
+      "priority",
+      "cost",
+      "d",
+      "m"
+    ],
+    "ocel:object-types": [
+      "ORDER",
+      "PRODUCT"
+    ],
+    "ocel:version": [
+      "1.0"
+    ],
+    "ocel:ordering": [
+      "timestamp"
+    ]
+  },
+  "ocel:events": {
+    "0": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:00:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p7",
+        "p8",
+        "p9",
+        "p10",
+        "p11",
+        "p12",
+        "p13",
+        "p14",
+        "p15",
+        "p16",
+        "p17",
+        "p18",
+        "p19",
+        "p20",
+        "p21",
+        "p22",
+        "p23",
+        "p24",
+        "p25",
+        "p26",
+        "p27",
+        "p28",
+        "p29",
+        "p30",
+        "p31",
+        "p32",
+        "p33",
+        "p34",
+        "p35",
+        "p36",
+        "p37",
+        "p38",
+        "p39",
+        "p40",
+        "p41",
+        "p42",
+        "p43",
+        "p44",
+        "p45",
+        "p46",
+        "p47",
+        "p48",
+        "p49",
+        "p50"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "1": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:01:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "2": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:02:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "3": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:03:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p3"
+      ],
+      "ocel:vmap": {}
+    },
+    "4": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:04:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p4"
+      ],
+      "ocel:vmap": {}
+    },
+    "5": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:05:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p5"
+      ],
+      "ocel:vmap": {}
+    },
+    "6": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:06:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p6"
+      ],
+      "ocel:vmap": {}
+    },
+    "7": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:07:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p7"
+      ],
+      "ocel:vmap": {}
+    },
+    "8": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:08:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p8"
+      ],
+      "ocel:vmap": {}
+    },
+    "9": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:09:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p9"
+      ],
+      "ocel:vmap": {}
+    },
+    "10": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:10:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p10"
+      ],
+      "ocel:vmap": {}
+    },
+    "11": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:11:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p11"
+      ],
+      "ocel:vmap": {}
+    },
+    "12": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:12:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p12"
+      ],
+      "ocel:vmap": {}
+    },
+    "13": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:13:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p13"
+      ],
+      "ocel:vmap": {}
+    },
+    "14": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:14:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p14"
+      ],
+      "ocel:vmap": {}
+    },
+    "15": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:15:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p15"
+      ],
+      "ocel:vmap": {}
+    },
+    "16": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:16:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p16"
+      ],
+      "ocel:vmap": {}
+    },
+    "17": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:17:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p17"
+      ],
+      "ocel:vmap": {}
+    },
+    "18": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:18:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p18"
+      ],
+      "ocel:vmap": {}
+    },
+    "19": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:19:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p19"
+      ],
+      "ocel:vmap": {}
+    },
+    "20": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:20:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p20"
+      ],
+      "ocel:vmap": {}
+    },
+    "21": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:21:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p21"
+      ],
+      "ocel:vmap": {}
+    },
+    "22": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:22:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p22"
+      ],
+      "ocel:vmap": {}
+    },
+    "23": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:23:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p23"
+      ],
+      "ocel:vmap": {}
+    },
+    "24": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:24:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p24"
+      ],
+      "ocel:vmap": {}
+    },
+    "25": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:25:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p25"
+      ],
+      "ocel:vmap": {}
+    },
+    "26": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:26:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p26"
+      ],
+      "ocel:vmap": {}
+    },
+    "27": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:27:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p27"
+      ],
+      "ocel:vmap": {}
+    },
+    "28": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:28:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p28"
+      ],
+      "ocel:vmap": {}
+    },
+    "29": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:29:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p29"
+      ],
+      "ocel:vmap": {}
+    },
+    "30": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:30:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p30"
+      ],
+      "ocel:vmap": {}
+    },
+    "31": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:31:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p31"
+      ],
+      "ocel:vmap": {}
+    },
+    "32": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:32:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p32"
+      ],
+      "ocel:vmap": {}
+    },
+    "33": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:33:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p33"
+      ],
+      "ocel:vmap": {}
+    },
+    "34": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:34:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p34"
+      ],
+      "ocel:vmap": {}
+    },
+    "35": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:35:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p35"
+      ],
+      "ocel:vmap": {}
+    },
+    "36": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:36:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p36"
+      ],
+      "ocel:vmap": {}
+    },
+    "37": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:37:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p37"
+      ],
+      "ocel:vmap": {}
+    },
+    "38": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:38:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p38"
+      ],
+      "ocel:vmap": {}
+    },
+    "39": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:39:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p39"
+      ],
+      "ocel:vmap": {}
+    },
+    "40": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:40:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p40"
+      ],
+      "ocel:vmap": {}
+    },
+    "41": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:41:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p41"
+      ],
+      "ocel:vmap": {}
+    },
+    "42": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:42:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p42"
+      ],
+      "ocel:vmap": {}
+    },
+    "43": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:43:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p43"
+      ],
+      "ocel:vmap": {}
+    },
+    "44": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:44:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p44"
+      ],
+      "ocel:vmap": {}
+    },
+    "45": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:45:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p45"
+      ],
+      "ocel:vmap": {}
+    },
+    "46": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:46:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p46"
+      ],
+      "ocel:vmap": {}
+    },
+    "47": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:47:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p47"
+      ],
+      "ocel:vmap": {}
+    },
+    "48": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:48:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p48"
+      ],
+      "ocel:vmap": {}
+    },
+    "49": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:49:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p49"
+      ],
+      "ocel:vmap": {}
+    },
+    "50": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:50:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p50"
+      ],
+      "ocel:vmap": {}
+    },
+    "51": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:51:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p7",
+        "p8",
+        "p9",
+        "p10",
+        "p11",
+        "p12",
+        "p13",
+        "p14",
+        "p15",
+        "p16",
+        "p17",
+        "p18",
+        "p19",
+        "p20",
+        "p21",
+        "p22",
+        "p23",
+        "p24",
+        "p25",
+        "p26",
+        "p27",
+        "p28",
+        "p29",
+        "p30",
+        "p31",
+        "p32",
+        "p33",
+        "p34",
+        "p35",
+        "p36",
+        "p37",
+        "p38",
+        "p39",
+        "p40",
+        "p41",
+        "p42",
+        "p43",
+        "p44",
+        "p45",
+        "p46",
+        "p47",
+        "p48",
+        "p49",
+        "p50"
+      ],
+      "ocel:vmap": {}
+    },
+    "52": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:52:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p7",
+        "p8",
+        "p9",
+        "p10",
+        "p11",
+        "p12",
+        "p13",
+        "p14",
+        "p15",
+        "p16",
+        "p17",
+        "p18",
+        "p19",
+        "p20",
+        "p21",
+        "p22",
+        "p23",
+        "p24",
+        "p25",
+        "p26",
+        "p27",
+        "p28",
+        "p29",
+        "p30",
+        "p31",
+        "p32",
+        "p33",
+        "p34",
+        "p35",
+        "p36",
+        "p37",
+        "p38",
+        "p39",
+        "p40",
+        "p41",
+        "p42",
+        "p43",
+        "p44",
+        "p45",
+        "p46",
+        "p47",
+        "p48",
+        "p49",
+        "p50"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    }
+  },
+  "ocel:objects": {
+    "o1": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 6000,
+        "priority": 2
+      }
+    },
+    "p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p3": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p4": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p5": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p6": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p7": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p8": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p9": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p10": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p11": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p12": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p13": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p14": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p15": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p16": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p17": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p18": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p19": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p20": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p21": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p22": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p23": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p24": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p25": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p26": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p27": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p28": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p29": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p30": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p31": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p32": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p33": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p34": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p35": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p36": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p37": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p38": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p39": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p40": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p41": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p42": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p43": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p44": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p45": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p46": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p47": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p48": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p49": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p50": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    }
+  }
+}

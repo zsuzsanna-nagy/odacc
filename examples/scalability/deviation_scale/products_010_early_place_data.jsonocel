@@ -1,0 +1,243 @@
+{
+  "ocel:global-log": {
+    "ocel:attribute-names": [
+      "vip",
+      "budget",
+      "priority",
+      "cost",
+      "d",
+      "m"
+    ],
+    "ocel:object-types": [
+      "ORDER",
+      "PRODUCT"
+    ],
+    "ocel:version": [
+      "1.0"
+    ],
+    "ocel:ordering": [
+      "timestamp"
+    ]
+  },
+  "ocel:events": {
+    "0": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:00:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p7",
+        "p8",
+        "p9",
+        "p10"
+      ],
+      "ocel:vmap": {
+        "d": 1
+      }
+    },
+    "1": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:01:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "2": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:02:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "3": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:03:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p3"
+      ],
+      "ocel:vmap": {}
+    },
+    "4": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:04:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p4"
+      ],
+      "ocel:vmap": {}
+    },
+    "5": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:05:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p5"
+      ],
+      "ocel:vmap": {}
+    },
+    "6": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:06:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p6"
+      ],
+      "ocel:vmap": {}
+    },
+    "7": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:07:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p7"
+      ],
+      "ocel:vmap": {}
+    },
+    "8": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:08:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p8"
+      ],
+      "ocel:vmap": {}
+    },
+    "9": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:09:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p9"
+      ],
+      "ocel:vmap": {}
+    },
+    "10": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:10:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p10"
+      ],
+      "ocel:vmap": {}
+    },
+    "11": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:11:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p7",
+        "p8",
+        "p9",
+        "p10"
+      ],
+      "ocel:vmap": {}
+    },
+    "12": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:12:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p7",
+        "p8",
+        "p9",
+        "p10"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    }
+  },
+  "ocel:objects": {
+    "o1": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1200,
+        "priority": 2
+      }
+    },
+    "p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p3": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p4": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p5": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p6": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p7": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p8": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p9": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "p10": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    }
+  }
+}

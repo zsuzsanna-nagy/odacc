@@ -1,0 +1,756 @@
+{
+  "ocel:global-log": {
+    "ocel:attribute-names": [
+      "vip",
+      "budget",
+      "priority",
+      "cost",
+      "d",
+      "m"
+    ],
+    "ocel:object-types": [
+      "ORDER",
+      "PRODUCT"
+    ],
+    "ocel:version": [
+      "1.0"
+    ],
+    "ocel:ordering": [
+      "timestamp"
+    ]
+  },
+  "ocel:events": {
+    "0": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:00:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "o1_p1",
+        "o1_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "1": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:01:00+00:00",
+      "ocel:omap": [
+        "o2",
+        "o2_p1",
+        "o2_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "2": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:02:00+00:00",
+      "ocel:omap": [
+        "o3",
+        "o3_p1",
+        "o3_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "3": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:03:00+00:00",
+      "ocel:omap": [
+        "o4",
+        "o4_p1",
+        "o4_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "4": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:04:00+00:00",
+      "ocel:omap": [
+        "o5",
+        "o5_p1",
+        "o5_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "5": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:05:00+00:00",
+      "ocel:omap": [
+        "o6",
+        "o6_p1",
+        "o6_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "6": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:06:00+00:00",
+      "ocel:omap": [
+        "o7",
+        "o7_p1",
+        "o7_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "7": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:07:00+00:00",
+      "ocel:omap": [
+        "o8",
+        "o8_p1",
+        "o8_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "8": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:08:00+00:00",
+      "ocel:omap": [
+        "o9",
+        "o9_p1",
+        "o9_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "9": {
+      "ocel:activity": "place order",
+      "ocel:timestamp": "2025-01-01T09:09:00+00:00",
+      "ocel:omap": [
+        "o10",
+        "o10_p1",
+        "o10_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3
+      }
+    },
+    "10": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:10:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "o1_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "11": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:11:00+00:00",
+      "ocel:omap": [
+        "o2",
+        "o2_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "12": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:12:00+00:00",
+      "ocel:omap": [
+        "o3",
+        "o3_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "13": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:13:00+00:00",
+      "ocel:omap": [
+        "o4",
+        "o4_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "14": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:14:00+00:00",
+      "ocel:omap": [
+        "o5",
+        "o5_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "15": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:15:00+00:00",
+      "ocel:omap": [
+        "o6",
+        "o6_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "16": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:16:00+00:00",
+      "ocel:omap": [
+        "o7",
+        "o7_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "17": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:17:00+00:00",
+      "ocel:omap": [
+        "o8",
+        "o8_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "18": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:18:00+00:00",
+      "ocel:omap": [
+        "o9",
+        "o9_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "19": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:19:00+00:00",
+      "ocel:omap": [
+        "o10",
+        "o10_p1"
+      ],
+      "ocel:vmap": {}
+    },
+    "20": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:20:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "o1_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "21": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:21:00+00:00",
+      "ocel:omap": [
+        "o2",
+        "o2_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "22": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:22:00+00:00",
+      "ocel:omap": [
+        "o3",
+        "o3_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "23": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:23:00+00:00",
+      "ocel:omap": [
+        "o4",
+        "o4_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "24": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:24:00+00:00",
+      "ocel:omap": [
+        "o5",
+        "o5_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "25": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:25:00+00:00",
+      "ocel:omap": [
+        "o6",
+        "o6_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "26": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:26:00+00:00",
+      "ocel:omap": [
+        "o7",
+        "o7_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "27": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:27:00+00:00",
+      "ocel:omap": [
+        "o8",
+        "o8_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "28": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:28:00+00:00",
+      "ocel:omap": [
+        "o9",
+        "o9_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "29": {
+      "ocel:activity": "pick item",
+      "ocel:timestamp": "2025-01-01T09:29:00+00:00",
+      "ocel:omap": [
+        "o10",
+        "o10_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "30": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:30:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "o1_p1",
+        "o1_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "31": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:31:00+00:00",
+      "ocel:omap": [
+        "o2",
+        "o2_p1",
+        "o2_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "32": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:32:00+00:00",
+      "ocel:omap": [
+        "o3",
+        "o3_p1",
+        "o3_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "33": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:33:00+00:00",
+      "ocel:omap": [
+        "o4",
+        "o4_p1",
+        "o4_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "34": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:34:00+00:00",
+      "ocel:omap": [
+        "o5",
+        "o5_p1",
+        "o5_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "35": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:35:00+00:00",
+      "ocel:omap": [
+        "o6",
+        "o6_p1",
+        "o6_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "36": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:36:00+00:00",
+      "ocel:omap": [
+        "o7",
+        "o7_p1",
+        "o7_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "37": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:37:00+00:00",
+      "ocel:omap": [
+        "o8",
+        "o8_p1",
+        "o8_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "38": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:38:00+00:00",
+      "ocel:omap": [
+        "o9",
+        "o9_p1",
+        "o9_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "39": {
+      "ocel:activity": "pay bank transfer",
+      "ocel:timestamp": "2025-01-01T09:39:00+00:00",
+      "ocel:omap": [
+        "o10",
+        "o10_p1",
+        "o10_p2"
+      ],
+      "ocel:vmap": {}
+    },
+    "40": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:40:00+00:00",
+      "ocel:omap": [
+        "o1",
+        "o1_p1",
+        "o1_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    },
+    "41": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:41:00+00:00",
+      "ocel:omap": [
+        "o2",
+        "o2_p1",
+        "o2_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    },
+    "42": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:42:00+00:00",
+      "ocel:omap": [
+        "o3",
+        "o3_p1",
+        "o3_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    },
+    "43": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:43:00+00:00",
+      "ocel:omap": [
+        "o4",
+        "o4_p1",
+        "o4_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    },
+    "44": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:44:00+00:00",
+      "ocel:omap": [
+        "o5",
+        "o5_p1",
+        "o5_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    },
+    "45": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:45:00+00:00",
+      "ocel:omap": [
+        "o6",
+        "o6_p1",
+        "o6_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    },
+    "46": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:46:00+00:00",
+      "ocel:omap": [
+        "o7",
+        "o7_p1",
+        "o7_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    },
+    "47": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:47:00+00:00",
+      "ocel:omap": [
+        "o8",
+        "o8_p1",
+        "o8_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    },
+    "48": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:48:00+00:00",
+      "ocel:omap": [
+        "o9",
+        "o9_p1",
+        "o9_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    },
+    "49": {
+      "ocel:activity": "ship",
+      "ocel:timestamp": "2025-01-01T09:49:00+00:00",
+      "ocel:omap": [
+        "o10",
+        "o10_p1",
+        "o10_p2"
+      ],
+      "ocel:vmap": {
+        "d": 3,
+        "m": 0
+      }
+    }
+  },
+  "ocel:objects": {
+    "o1": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o1_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o1_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o2": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o2_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o2_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o3": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o3_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o3_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o4": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o4_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o4_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o5": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o5_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o5_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o6": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o6_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o6_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o7": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o7_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o7_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o8": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o8_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o8_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o9": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o9_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o9_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o10": {
+      "ocel:type": "ORDER",
+      "ocel:ovmap": {
+        "vip": 1,
+        "budget": 1000,
+        "priority": 2
+      }
+    },
+    "o10_p1": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    },
+    "o10_p2": {
+      "ocel:type": "PRODUCT",
+      "ocel:ovmap": {
+        "cost": 100
+      }
+    }
+  }
+}
