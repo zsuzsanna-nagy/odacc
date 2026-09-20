@@ -1,0 +1,7 @@
+benchmark_family,observations,direct_count,direct_percent,local_repair_count,local_repair_percent,checkpoint_exact_count,checkpoint_exact_percent,full_exact_count,full_exact_percent
+Comprehensive,30,23,76.66666666666667,0,0.0,3,10.0,4,13.333333333333334
+Object attributes,40,34,85.0,0,0.0,1,2.5,5,12.5
+Scalability,1018,996,97.83889980353635,0,0.0,0,0.0,22,2.161100196463654
+Order components,904,870,96.23893805309734,34,3.761061946902655,0,0.0,0,0.0
+Controlled mutations,5933,5603,94.43788976908814,293,4.938479689870218,0,0.0,37,0.6236305410416315
+Multi-deviation,1428,1306,91.45658263305322,94,6.582633053221289,7,0.49019607843137253,21,1.4705882352941175

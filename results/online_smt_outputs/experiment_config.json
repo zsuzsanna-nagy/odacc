@@ -1,0 +1,439 @@
+[
+  {
+    "name": "comprehensive_online",
+    "folder": "examples\\comprehensive",
+    "model": "examples\\comprehensive\\net.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "object_attributes_online",
+    "folder": "examples\\object_attributes",
+    "model": "examples\\object_attributes\\net_object_attrs.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "component_scale_online",
+    "folder": "examples\\scalability\\component_scale",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "deviation_scale_online",
+    "folder": "examples\\scalability\\deviation_scale",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "deviation_scale_extended_online",
+    "folder": "examples\\scalability\\deviation_scale_extended",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "length_scale_online",
+    "folder": "examples\\scalability\\length_scale",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "merge_scale_online",
+    "folder": "examples\\scalability\\merge_scale",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "merge_scale_extended_online",
+    "folder": "examples\\scalability\\merge_scale_extended",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "guard_complexity_simple_online",
+    "folder": "examples\\scalability\\guard_complexity",
+    "model": "examples\\scalability\\models\\net_guard_simple.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "guard_complexity_medium_online",
+    "folder": "examples\\scalability\\guard_complexity",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "guard_complexity_complex_online",
+    "folder": "examples\\scalability\\guard_complexity",
+    "model": "examples\\scalability\\models\\net_guard_complex.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "components_online",
+    "folder": "examples\\order_management\\components",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "controlled_mutations_fit_online",
+    "folder": "examples\\order_management\\controlled_mutations\\fit",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "controlled_mutations_cf_extra_pick_online",
+    "folder": "examples\\order_management\\controlled_mutations\\cf_extra_pick",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "controlled_mutations_cf_missing_pick_online",
+    "folder": "examples\\order_management\\controlled_mutations\\cf_missing_pick",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "controlled_mutations_data_order_price_online",
+    "folder": "examples\\order_management\\controlled_mutations\\data_order_price",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "controlled_mutations_data_package_weight_online",
+    "folder": "examples\\order_management\\controlled_mutations\\data_package_weight",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "controlled_mutations_object_extra_item_relation_online",
+    "folder": "examples\\order_management\\controlled_mutations\\object_extra_item_relation",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "controlled_mutations_object_missing_item_relation_online",
+    "folder": "examples\\order_management\\controlled_mutations\\object_missing_item_relation",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "multi_deviation_benchmark_two_same_dimension_online",
+    "folder": "examples\\order_management\\multi_deviation_benchmark\\two_same_dimension",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "multi_deviation_benchmark_two_mixed_online",
+    "folder": "examples\\order_management\\multi_deviation_benchmark\\two_mixed",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "multi_deviation_benchmark_three_mixed_online",
+    "folder": "examples\\order_management\\multi_deviation_benchmark\\three_mixed",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "multi_deviation_benchmark_stress_4_5_online",
+    "folder": "examples\\order_management\\multi_deviation_benchmark\\stress_4_5",
+    "model": "examples\\order_management\\order_management_dopid.pnml",
+    "backend_sets": [
+      "smt_smt"
+    ],
+    "mode": "online",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  }
+]

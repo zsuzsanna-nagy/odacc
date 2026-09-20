@@ -1,0 +1,222 @@
+[
+  {
+    "name": "comprehensive",
+    "folder": "examples\\comprehensive",
+    "model": "examples\\comprehensive\\net.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "object_attributes",
+    "folder": "examples\\object_attributes",
+    "model": "examples\\object_attributes\\net_object_attrs.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "component_scale",
+    "folder": "examples\\scalability\\component_scale",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "deviation_scale",
+    "folder": "examples\\scalability\\deviation_scale",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "deviation_scale_extended",
+    "folder": "examples\\scalability\\deviation_scale_extended",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "length_scale",
+    "folder": "examples\\scalability\\length_scale",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "merge_scale",
+    "folder": "examples\\scalability\\merge_scale",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "merge_scale_extended",
+    "folder": "examples\\scalability\\merge_scale_extended",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "guard_complexity_simple",
+    "folder": "examples\\scalability\\guard_complexity",
+    "model": "examples\\scalability\\models\\net_guard_simple.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "guard_complexity_medium",
+    "folder": "examples\\scalability\\guard_complexity",
+    "model": "examples\\scalability\\models\\net_guard_medium.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  },
+  {
+    "name": "guard_complexity_complex",
+    "folder": "examples\\scalability\\guard_complexity",
+    "model": "examples\\scalability\\models\\net_guard_complex.pnml",
+    "backend_sets": [
+      "symbolic_smt",
+      "smt_smt"
+    ],
+    "mode": "both",
+    "warmups": 0,
+    "repetitions": 1,
+    "offline_timeout": 600,
+    "online_timeout": 600,
+    "extra_args": [
+      "--observation-timeout",
+      "60",
+      "--native-crash-retries",
+      "1"
+    ]
+  }
+]
