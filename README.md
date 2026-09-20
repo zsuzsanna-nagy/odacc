@@ -4,6 +4,17 @@
 
 This repository accompanies the paper **Exact Online Data-Aware Object-Centric Conformance Checking with Incremental Symbolic Alignments** and contains the implementation, benchmark instances, benchmark-generation tools, modified CoCoMoT files, experiment configurations, and result artifacts used in the evaluation.
 
+
+> **Note on reported results.**
+> The repository contains a newer complete experiment run performed after paper
+> submission on faster hardware, using the same benchmark definitions, algorithms,
+> timeout settings, and experimental protocol. The symbolic completion result is
+> unchanged, while the SMT reference completes additional cases within the timeout.
+> Consequently, some aggregate completion and runtime values in `results/` differ
+> from those reported in the submitted manuscript. See [`results/README.md`](results/README.md)
+> for the exact differences and the corresponding result files.
+
+
 ## Repository structure
 
 ```text
