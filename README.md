@@ -16,12 +16,16 @@ odacc/
 ├── odacc.py                 # main command-line entry point
 ├── batch_folder.py          # run ODACC on all OCEL files in a folder
 ├── requirements.txt
+├── README.md                # this file
+├── RUNNING.md               # installation, tests and the experiments of the paper
 ├── src/odacc/               # ODACC implementation
 ├── examples/                # benchmark instances used in the evaluation
 ├── benchmarks/              # benchmark-generation tools
-├── external/                # modified external source files (CoCoMoT)
-├── experiments/             # experiment runners/configurations
-└── results/                 # experimental results
+├── external/                # modified CoCoMoT files
+├── experiments/             # experiment runners
+├── tests/                   # regression tests
+├── tools/                   # session comparison, per-prefix cost comparison, result tables
+└── results/                 # recorded results and the paper's tables
 ```
 
 The individual benchmark folders contain additional README files describing their purpose and provenance.
