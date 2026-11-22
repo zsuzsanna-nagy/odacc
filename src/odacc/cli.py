@@ -36,6 +36,77 @@ def build_parser():
                    help="Maximum local repair candidates before exact A* fallback")
     p.add_argument("--local-repair-transition-cap", type=int, default=12,
                    help="Maximum structurally relevant model transitions considered by local repair search")
+    p.add_argument("--symbolic-smt-fallback-after", type=float, default=None,
+                   help="Level-3 option of the symbolic backend: after this many seconds of "
+                        "symbolic exact search in one update, decide the strict-improvement "
+                        "question with one monolithic SMT query (0 = immediately on entering "
+                        "Level 3; default: off, i.e. purely symbolic)")
+    p.add_argument("--symbolic-smt-fallback-timeout", type=float, default=60.0,
+                   help="Timeout in seconds of one SMT strict-improvement query")
+    p.add_argument("--anytime-deadline", type=float, default=None,
+                   help="Anytime mode of the symbolic backend: per-observation deadline in "
+                        "seconds.  When it passes, the best feasible prefix alignment found so "
+                        "far is returned, flagged certified=false with its proven lower bound. "
+                        "Choose it below --observation-timeout (default: off, exact mode)")
+    p.add_argument("--log-reexplanation-depth", type=int, default=2,
+                   help="Maximum number of trailing log moves re-explained by the Level-2 "
+                        "log re-explanation operator (0 = off)")
+    p.add_argument("--object-projection-lb", choices=["on", "off"], default="on",
+                   help="Use the per-object projection lower bound in the symbolic backend")
+    p.add_argument("--exact-sync", choices=["anchored", "upstream"], default="anchored",
+                   help="Exact-synchronization semantics: 'anchored' (tokens of the bound "
+                        "anchor object only; default) or 'upstream' (CoCoMoT's original "
+                        "encoding; ablation of ODACC 1.0 behaviour)")
+    p.add_argument("--nonvacuous-firing", choices=["on", "off"], default="on",
+                   help="Require every firing of a transition with input arcs to consume at "
+                        "least one token (default: on; 'off' allows firings through empty "
+                        "LIST bindings, as unmodified CoCoMoT)")
+    p.add_argument("--smt-step-bound", choices=["certified", "cocomot"], default="certified",
+                   help="SMT backend model-run bound: 'certified' (re-solve when the bound "
+                        "could cut off a cheaper alignment; default) or 'cocomot' (CoCoMoT's "
+                        "default bound only; ablation)")
+    p.add_argument("--token-path-repair", choices=["on", "off"], default="off",
+                   help="Candidate heuristic: multi-step repairs moving an object's token from "
+                        "where it is to where a synchronous move needs it")
+    p.add_argument("--token-path-max-len", type=int, default=3)
+    p.add_argument("--incumbent-beam", type=int, default=0,
+                   help="Candidate heuristic: keep up to K alternative complete witnesses per "
+                        "component and also continue from them (0 = off)")
+    p.add_argument("--deviation-priority", choices=["on", "off"], default="off",
+                   help="Candidate heuristic: rank local repairs touching objects with a "
+                        "positive per-object deviation cost first")
+    p.add_argument("--replay-reexplanation", choices=["on", "off"], default="off",
+                   help="Candidate heuristic: re-explain the event that produced a token "
+                        "blocking an exact synchronization")
+    p.add_argument("--joint-lb", choices=["on", "off"], default="off",
+                   help="Joint token-flow LP lower bound (needs scipy); computed when an "
+                        "update cannot be certified otherwise")
+    p.add_argument("--smt-incremental", choices=["on", "off"], default="off",
+                   help="SMT check at Level 3 with a persistent per-component base encoding "
+                        "(model part) and a per-update edit-distance layer (push/pop)")
+    p.add_argument("--smt-incremental-headroom", type=float, default=1.5,
+                   help="Step-bound headroom of the persistent base encoding (>= 1.0)")
+    p.add_argument("--event-order", choices=["total", "per-object"], default="total",
+                   help="Alignment semantics of the symbolic search: events explained in total "
+                        "observation order (default, as the SMT reference) or only in "
+                        "per-object order (ablation)")
+    p.add_argument("--merge-lower-bound", choices=["joint", "parent-sum"], default="joint",
+                   help="Lower bound when components merge: joint + projection bound (sound, "
+                        "default) or the sum of the parent optima (needs superadditivity)")
+    p.add_argument("--monotonicity-guard", choices=["on", "off"], default="on",
+                   help="On updates introducing new objects, certify only with "
+                        "domain-independent bounds (default on; off for ablation)")
+    p.add_argument("--lp-guided-candidates", choices=["on", "off"], default="off",
+                   help="Build candidate alignments from the joint-LP "
+                        "solution (requires --joint-lb on)")
+    p.add_argument("--lp-heuristic", choices=["on", "off"], default="off",
+                   help="Joint LP bound of the remaining events as "
+                        "remaining-cost estimate in the exact search")
+    p.add_argument("--smt-update-timeout", type=float, default=0.0,
+                   help="SMT backend, online: time limit per update in seconds (0 = none). "
+                        "A component whose update exceeds it is given up: its later updates "
+                        "(and those of components merging with it) are skipped, all other "
+                        "components continue")
     p.add_argument("--fixed-objects", action="store_true",
                    help="Use all observed component objects in the model initial marking")
     p.add_argument("--solve-on-updates", action="store_true",
@@ -220,9 +291,13 @@ def main(argv=None):
     if not args.model or not args.cocomot_root:
         raise SystemExit("--model and --cocomot-root are required for conformance checking")
 
+    from . import cocomot_adapter as _adapter
+    _adapter.EXACT_SYNC_MODE = args.exact_sync
+    _adapter.NONVACUOUS_FIRING = (args.nonvacuous_firing == "on")
+
     def make_backend(name):
         if name == "symbolic":
-            return SymbolicIncrementalBackend(
+            backend = SymbolicIncrementalBackend(
                 args.cocomot_root, args.model, args.fixed_objects,
                 model_depth_margin=args.model_depth_margin,
                 max_prepared_contexts=args.jodap_contexts,
@@ -232,10 +307,33 @@ def main(argv=None):
                 local_repair_max_candidates=args.local_repair_max_candidates,
                 local_repair_transition_cap=args.local_repair_transition_cap,
             )
-        return CocomotBackend(
+            backend.smt_fallback_after = args.symbolic_smt_fallback_after
+            backend.smt_fallback_timeout = args.symbolic_smt_fallback_timeout
+            backend.log_reexplanation_depth = args.log_reexplanation_depth
+            backend.anytime_deadline = args.anytime_deadline
+            backend.use_token_path_repair = (args.token_path_repair == "on")
+            backend.token_path_max_len = args.token_path_max_len
+            backend.incumbent_beam = args.incumbent_beam
+            backend.use_deviation_priority = (args.deviation_priority == "on")
+            backend.use_replay_reexplanation = (args.replay_reexplanation == "on")
+            backend.use_joint_lb = (args.joint_lb == "on")
+            backend.event_order = args.event_order
+            backend.merge_lower_bound = args.merge_lower_bound
+            backend.monotonicity_guard = (args.monotonicity_guard == "on")
+            backend.use_lp_candidates = (args.lp_guided_candidates == "on")
+            backend.use_lp_heuristic = (args.lp_heuristic == "on")
+            backend.smt_incremental = (args.smt_incremental == "on")
+            backend.smt_incremental_headroom = max(1.0, float(args.smt_incremental_headroom))
+            backend.use_object_projection_lb = (args.object_projection_lb == "on")
+            return backend
+        backend = CocomotBackend(
             args.cocomot_root, args.model, args.fixed_objects,
             quiet_solver=args.quiet_solver,
         )
+        backend.step_bound_mode = args.smt_step_bound
+        backend.update_timeout = (args.smt_update_timeout
+                                  if args.smt_update_timeout and args.smt_update_timeout > 0 else None)
+        return backend
 
     try:
         backend = make_backend(args.backend)
@@ -282,6 +380,8 @@ def main(argv=None):
                 "total_stream_units": len(stream),
                 "completed_stream_units": run.completed_stream_units,
                 "completed_online_updates": len(run.certified_prefix_snapshots),
+                "skipped_updates": run.skipped_updates,
+                "given_up_components": list(run.given_up_components),
                 "last_completed_stream_position": run.last_completed_stream_position,
                 **progress,
             },

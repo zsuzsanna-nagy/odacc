@@ -175,11 +175,26 @@ def result_dict(r: AlignmentResult) -> dict[str, Any]:
             else 0.0
         ),
         "moves": moves,
+        **_certification_metadata(r),
         "model_run": _plain_list_of_dicts(r.model_run),
         "assignments": _plain_list_of_dicts(r.assignments),
         "joint_assignment": _plain_dict(r.joint_assignment),
     }
 
+
+
+def _certification_metadata(r: AlignmentResult) -> dict[str, Any]:
+    """Optional per-result metadata attached dynamically by the backends."""
+    out: dict[str, Any] = {}
+    for key in ("certification_route", "certification_route_detail", "certified", "lower_bound",
+                "solution_status", "global_lower_bound", "upper_bound", "optimality_gap",
+                "step_bound", "step_bound_certified", "step_bound_attempts"):
+        value = getattr(r, key, None)
+        if value is None or type(value) in (str, int, float, bool):
+            out[key] = value
+    if not r.feasible and type(r.raw) is str and r.raw:
+        out["failure_reason"] = r.raw
+    return out
 
 
 def certified_result_dict(r: AlignmentResult) -> dict[str, Any]:
@@ -223,6 +238,7 @@ def certified_result_dict(r: AlignmentResult) -> dict[str, Any]:
         "encode_seconds": float(r.encode_seconds) if type(r.encode_seconds) in (int, float) else 0.0,
         "solve_seconds": float(r.solve_seconds) if type(r.solve_seconds) in (int, float) else 0.0,
         "moves": moves,
+        **_certification_metadata(r),
         "checkpoint_compact": True,
     }
 

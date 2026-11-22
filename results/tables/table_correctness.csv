@@ -1,0 +1,8 @@
+Family,Exact checked,Anytime checked,Uncertified,Median gap,Max gap,Optimum known,Cost optimal
+Comprehensive,30,30,0,--,--,0,0
+Object attributes,40,40,0,--,--,0,0
+Scalability,594,594,0,--,--,0,0
+Order components,587,587,0,--,--,0,0
+Controlled mutations,"3,539","3,850",456,10,303,5,0
+Multi-deviation,"1,090","1,375",436,8,282,2,0
+Overall,"5,880","6,476",892,10,303,7,0

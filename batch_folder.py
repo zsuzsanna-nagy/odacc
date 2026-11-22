@@ -12,6 +12,7 @@ import csv
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import time
@@ -46,6 +47,10 @@ def parser():
                    help="Backend used for final offline alignment (default: smt)")
     p.add_argument("--online-timeout", type=float, default=120.0,
                    help="Timeout in seconds for each file's complete online phase; <=0 disables the timeout")
+    p.add_argument("--on-observation-timeout", choices=["stop", "continue"], default="stop",
+                   help="What happens when one update exceeds --observation-timeout: 'stop' "
+                        "ends the run of that file (default); 'continue' lets the update "
+                        "finish, marks it as over the limit and processes the remaining events")
     p.add_argument("--observation-timeout", type=float, default=0.0, metavar="SECONDS",
                    help=("Maximum processing time for one online observation/update. "
                          "<=0 disables the per-observation timeout. When it fires, "
@@ -63,6 +68,12 @@ def parser():
                    help="Maximum local-repair candidates before exact A* fallback")
     p.add_argument("--local-repair-transition-cap", type=int, default=12,
                    help="Maximum structurally relevant model transitions considered locally")
+    p.add_argument("--odacc-extra", default="",
+                   help="Additional odacc.py arguments for every backend, as one shell-quoted "
+                        "string (e.g. \"--exact-sync upstream --smt-step-bound cocomot\")")
+    p.add_argument("--symbolic-extra", default="",
+                   help="Additional odacc.py arguments for the symbolic backend, as one "
+                        "shell-quoted string (e.g. \"--symbolic-smt-fallback-after 0\")")
     p.add_argument("--pattern", default="*.jsonocel")
     p.add_argument("--recursive", action="store_true")
     p.add_argument("--fixed-objects", action="store_true")
@@ -223,6 +234,15 @@ def _popen_isolation_kwargs():
     return {"start_new_session": True}
 
 
+def _online_ok_status(rec, data):
+    """ONLINE_OK, or ONLINE_PARTIAL if updates of timed-out components were skipped."""
+    progress = (data or {}).get("progress") or {}
+    skipped = int(progress.get("skipped_updates") or 0)
+    rec["skipped_updates"] = skipped
+    rec["given_up_components"] = len(progress.get("given_up_components") or [])
+    return "ONLINE_PARTIAL" if skipped else "ONLINE_OK"
+
+
 def _kill_process_tree(proc):
     """Best-effort hard termination of an isolated ODACC process tree."""
     if proc is None or proc.poll() is not None:
@@ -325,6 +345,8 @@ def _run_isolated_online(cmd, args, checkpoint_path: Path):
                 online_timed_out = True
                 _kill_process_tree(proc)
 
+        reported_late = set()
+
         def observation_watchdog():
             nonlocal observation_timed_out, observation_timeout_meta
             if args.observation_timeout <= 0:
@@ -337,11 +359,20 @@ def _run_isolated_online(cmd, args, checkpoint_path: Path):
                 if started_at is not None:
                     elapsed = time.perf_counter() - started_at
                     if elapsed >= args.observation_timeout:
-                        observation_timed_out = True
-                        observation_timeout_meta = dict(meta or {})
-                        observation_timeout_meta["elapsed_seconds"] = elapsed
-                        _kill_process_tree(proc)
-                        return
+                        if args.on_observation_timeout == "continue":
+                            # Record once per update and keep the run going.
+                            if started_at not in reported_late:
+                                reported_late.add(started_at)
+                                print(f"     update over the observation limit "
+                                      f"({args.observation_timeout:.0f}s), continuing: "
+                                      f"{(meta or {}).get('activity', '')} "
+                                      f"{(meta or {}).get('event_id', '')}", flush=True)
+                        else:
+                            observation_timed_out = True
+                            observation_timeout_meta = dict(meta or {})
+                            observation_timeout_meta["elapsed_seconds"] = elapsed
+                            _kill_process_tree(proc)
+                            return
                 time.sleep(sleep_for)
 
         online_timer = None
@@ -450,7 +481,8 @@ def main():
     print(f"Online backend: {args.backend}")
     print(f"Offline backend: {offline_backend}")
     if args.observation_timeout > 0:
-        print(f"Per-observation online timeout: {args.observation_timeout:.1f}s")
+        print(f"Per-observation online timeout: {args.observation_timeout:.1f}s "
+              f"(on timeout: {args.on_observation_timeout})")
     else:
         print("Per-observation online timeout: disabled")
     print()
@@ -516,9 +548,14 @@ def main():
                 online_cmd[oi] = str(online_file)
                 online_cmd += ["--mode", "online", "--backend", args.backend,
                                "--offline-backend", "same"]
+                online_cmd += shlex.split(args.odacc_extra)
                 if args.backend == "symbolic":
                     online_cmd += ["--model-depth-margin", str(args.model_depth_margin),
-                                   "--jodap-contexts", str(args.jodap_contexts)]
+                                   "--jodap-contexts", str(args.jodap_contexts),
+                                   "--local-repair-cost-budget", str(args.local_repair_cost_budget),
+                                   "--local-repair-max-candidates", str(args.local_repair_max_candidates),
+                                   "--local-repair-transition-cap", str(args.local_repair_transition_cap)]
+                    online_cmd += shlex.split(args.symbolic_extra)
                     if args.symbolic_query_diagnostics:
                         diag_file = out / f"{safe_stem}.jodap_diagnostics.jsonl"
                         online_cmd += ["--symbolic-query-diagnostics", str(diag_file),
@@ -599,7 +636,7 @@ def main():
                 rec["online_total_seconds"] = timing_on.get("online_total_seconds")
                 rec["online_avg_seconds"] = timing_on.get("online_avg_seconds")
                 rec["online_max_seconds"] = timing_on.get("online_max_seconds")
-                rec["online_status"] = "ONLINE_OK"
+                rec["online_status"] = _online_ok_status(rec, online_data)
 
                 # Print the online result before starting potentially expensive
                 # offline completion, so a long offline solve no longer looks like
@@ -617,9 +654,11 @@ def main():
                 offline_cmd[oi] = str(offline_file)
                 offline_cmd += ["--mode", "offline", "--backend", offline_backend,
                                 "--offline-backend", offline_backend]
+                offline_cmd += shlex.split(args.odacc_extra)
                 if offline_backend == "symbolic":
                     offline_cmd += ["--model-depth-margin", str(args.model_depth_margin),
                                     "--jodap-contexts", str(args.jodap_contexts)]
+                    offline_cmd += shlex.split(args.symbolic_extra)
                 timeout = None if args.offline_timeout <= 0 else args.offline_timeout
                 try:
                     cp_off = subprocess.run(offline_cmd, capture_output=True, text=True, timeout=timeout, **_popen_isolation_kwargs())
@@ -694,9 +733,11 @@ def main():
                 phase_backend = args.backend if args.mode == "online" else offline_backend
                 cmd += ["--mode", args.mode, "--backend", phase_backend,
                         "--offline-backend", phase_backend]
+                cmd += shlex.split(args.odacc_extra)
                 if phase_backend == "symbolic":
                     cmd += ["--model-depth-margin", str(args.model_depth_margin),
                             "--jodap-contexts", str(args.jodap_contexts)]
+                    cmd += shlex.split(args.symbolic_extra)
                     if args.mode == "online" and args.symbolic_query_diagnostics:
                         diag_file = out / f"{safe_stem}.jodap_diagnostics.jsonl"
                         cmd += ["--symbolic-query-diagnostics", str(diag_file),
@@ -800,7 +841,7 @@ def main():
                 rec["offline_total_seconds"] = timing.get("offline_total_seconds")
                 rec["conformance_total_seconds"] = timing.get("conformance_total_seconds")
                 if args.mode == "online":
-                    rec["online_status"] = "ONLINE_OK"
+                    rec["online_status"] = _online_ok_status(rec, data)
                 else:
                     rec["offline_status"] = "OFFLINE_OK"
 
@@ -1023,6 +1064,19 @@ def main():
             f"{tfmt(on_tot):>8} {tfmt(on_avg):>8} {tfmt(on_max):>8} "
             f"{tfmt(off_t):>8} {tfmt(conf_t):>8}"
         )
+
+    # Updates over the observation limit (counted for both actions; with
+    # "continue" they finished late, with "stop" the run ended at the first one).
+    if args.observation_timeout > 0:
+        late_by_file = {}
+        for row in prefix_timing_rows:
+            over = float(row.get("wall_seconds") or 0.0) > args.observation_timeout
+            row["over_observation_limit"] = over
+            if over:
+                late_by_file[row.get("file")] = late_by_file.get(row.get("file"), 0) + 1
+        for rec in summary:
+            rec["updates_over_observation_limit"] = late_by_file.get(rec.get("file"), 0)
+            rec["observation_timeout_action"] = args.on_observation_timeout
 
     summary_json = out / "summary.json"
     with open(summary_json, "w", encoding="utf-8") as fh:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
 import re
 import statistics
 import subprocess
@@ -17,15 +18,20 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+_HERE = Path(__file__).resolve().parent
+# Works both from the repository root and from experiments/: ROOT is the
+# directory containing batch_folder.py and examples/.
+ROOT = _HERE if (_HERE / "batch_folder.py").exists() else _HERE.parent
 BATCH = ROOT / "batch_folder.py"
 PYTHON = sys.executable
 
 # ---------------------------------------------------------------------------
 # EDIT THIS SECTION
 # ---------------------------------------------------------------------------
-COCOMOT_ROOT = Path("../cocomot-main")
-RESULT_ROOT = ROOT / "experiment_runs"
+# Path of the CoCoMoT checkout (relative paths are resolved from ROOT); the
+# environment variable ODACC_COCOMOT_ROOT overrides it.
+COCOMOT_ROOT = Path(os.environ.get("ODACC_COCOMOT_ROOT", "../cocomot-main"))
+RESULT_ROOT = _HERE / "experiment_runs"
 
 BACKEND_SETS = {
     "symbolic_symbolic": ("symbolic", "symbolic"),
@@ -457,6 +463,146 @@ def write_csv(path, rows):
             w=csv.DictWriter(fh, fieldnames=fields); w.writeheader(); w.writerows(rows)
 
 
+# SMT reference variants (ablation of the 1.1 changes to the reference):
+#   current        anchored exact synchronization + certified model-run bound
+#   cocomot-bound  anchored exact synchronization + CoCoMoT's default bound
+#   upstream-sync  CoCoMoT's exact-sync encoding + certified bound
+#   legacy         both as in ODACC 1.0 (CoCoMoT behaviour)
+# Run e.g. ``python experiments/run_online_smt.py --variant legacy``.
+VARIANTS = {
+    "current": "",
+    "cocomot-bound": "--smt-step-bound cocomot",
+    "upstream-sync": "--exact-sync upstream",
+    "legacy": "--exact-sync upstream --smt-step-bound cocomot --nonvacuous-firing off",
+    "vacuous": "--nonvacuous-firing off",
+}
+VARIANT = "current"
+
+
+
+# ---------------------------------------------------------------------------
+# Time-limit overrides (2.2).  Examples:
+#   --observation-timeout 120   per-observation limit of the batch runner
+#   --online-timeout 3600       limit for the whole online run of one case
+#   --deadline 100              anytime deadline (only for anytime variants)
+#   --smt-after 20              start of the SMT check (only where it is used)
+# Overridden values are added to the session folder name.
+# ---------------------------------------------------------------------------
+def _arg_value(name):
+    if name in sys.argv:
+        try:
+            return float(sys.argv[sys.argv.index(name) + 1])
+        except (IndexError, ValueError):
+            raise SystemExit(f"{name} needs a number")
+    return None
+
+
+def _arg_str(name, choices):
+    if name in sys.argv:
+        try:
+            v = sys.argv[sys.argv.index(name) + 1]
+        except IndexError:
+            raise SystemExit(f"{name} needs a value")
+        if v not in choices:
+            raise SystemExit(f"{name} must be one of {choices}")
+        return v
+    return None
+
+
+TIME_OVERRIDES = {
+    "action": _arg_str("--on-observation-timeout", ("stop", "continue")),
+    "observation": _arg_value("--observation-timeout"),
+    "online": _arg_value("--online-timeout"),
+    "deadline": _arg_value("--deadline"),
+    "smt_after": _arg_value("--smt-after"),
+}
+
+
+def _fmt(x):
+    return str(int(x)) if float(x).is_integer() else str(x)
+
+
+def apply_time_overrides(cmd, symbolic_extra=None):
+    """Apply TIME_OVERRIDES to a batch_folder command and a symbolic option string."""
+    cmd = list(cmd)
+    o = TIME_OVERRIDES
+    if o["online"] is not None and "--online-timeout" in cmd:
+        cmd[cmd.index("--online-timeout") + 1] = _fmt(o["online"])
+    if o["observation"] is not None:
+        if "--observation-timeout" in cmd:
+            cmd[cmd.index("--observation-timeout") + 1] = _fmt(o["observation"])
+        else:
+            cmd += ["--observation-timeout", _fmt(o["observation"])]
+    if o["action"] is not None:
+        cmd += ["--on-observation-timeout", o["action"]]
+    if symbolic_extra:
+        if o["deadline"] is not None and "--anytime-deadline" in symbolic_extra:
+            symbolic_extra = re.sub(r"--anytime-deadline\s+\S+",
+                                    f"--anytime-deadline {_fmt(o['deadline'])}", symbolic_extra)
+        if o["smt_after"] is not None and "--symbolic-smt-fallback-after" in symbolic_extra:
+            symbolic_extra = re.sub(r"--symbolic-smt-fallback-after\s+\S+",
+                                    f"--symbolic-smt-fallback-after {_fmt(o['smt_after'])}",
+                                    symbolic_extra)
+    return cmd, symbolic_extra
+
+
+SMT_TIMEOUT_SCOPE = (_arg_str("--smt-timeout-scope", ("component", "file")) or "component")
+
+
+def apply_timeout_scope(cmd):
+    """Per-component give-up (default) or the former per-file stop.
+
+    ``component``: the observation limit becomes the SMT backend's per-update
+    limit (--smt-update-timeout); a component whose update exceeds it is given
+    up while the other components continue.  The batch runner's watchdog is
+    kept only as a safety net (twice the limit, at least 60 s more) and stops
+    the file if an uninterruptible step hangs.
+    ``file``: the batch runner stops the whole file at the first update over
+    the limit.
+    """
+    cmd = list(cmd)
+    if SMT_TIMEOUT_SCOPE != "component" or "--observation-timeout" not in cmd:
+        return cmd
+    i = cmd.index("--observation-timeout")
+    limit = float(cmd[i + 1])
+    if limit <= 0:
+        return cmd
+    cmd[i + 1] = _fmt(max(2 * limit, limit + 60))
+    extra = f"--smt-update-timeout {_fmt(limit)}"
+    if "--odacc-extra" in cmd:
+        j = cmd.index("--odacc-extra")
+        cmd[j + 1] = (cmd[j + 1] + " " + extra).strip()
+    else:
+        cmd += ["--odacc-extra", extra]
+    if "--on-observation-timeout" in cmd:
+        k = cmd.index("--on-observation-timeout")
+        cmd[k + 1] = "stop"
+    return cmd
+
+
+def time_suffix():
+    o = TIME_OVERRIDES
+    parts = []
+    if o["observation"] is not None: parts.append(f"obs{_fmt(o['observation'])}")
+    if o["deadline"] is not None: parts.append(f"dl{_fmt(o['deadline'])}")
+    if o["smt_after"] is not None: parts.append(f"smt{_fmt(o['smt_after'])}")
+    if o["online"] is not None: parts.append(f"online{_fmt(o['online'])}")
+    if o["action"] == "continue": parts.append("continue")
+    if globals().get("SMT_TIMEOUT_SCOPE") == "file": parts.append("filestop")
+    return ("_" + "_".join(parts)) if parts else ""
+
+
+def check_time_margin(symbolic_extra):
+    """Warn if the anytime deadline leaves less than 20 s to the observation limit."""
+    if not symbolic_extra or "--anytime-deadline" not in symbolic_extra:
+        return
+    m = re.search(r"--anytime-deadline\s+(\S+)", symbolic_extra)
+    obs = TIME_OVERRIDES["observation"] or 60.0
+    if m and float(m.group(1)) > obs - 20:
+        print(f"WARNING: anytime deadline {m.group(1)} s leaves less than 20 s to the "
+              f"observation timeout {_fmt(obs)} s; updates may be killed. "
+              f"Use --deadline {_fmt(obs - 20)} or a larger --observation-timeout.")
+
 def run_one(exp, combo_name, backend, offline_backend, run_dir, warmup=False):
     cmd = [PYTHON, str(BATCH),
            "--cocomot-root", str(COCOMOT_ROOT),
@@ -466,6 +612,10 @@ def run_one(exp, combo_name, backend, offline_backend, run_dir, warmup=False):
            "--online-timeout", str(exp.get("online_timeout", 120)),
            "--offline-timeout", str(exp.get("offline_timeout", 120))]
     cmd += list(exp.get("extra_args", []))
+    if VARIANTS.get(VARIANT):
+        cmd += ["--odacc-extra", VARIANTS[VARIANT]]
+    cmd, _ = apply_time_overrides(cmd)
+    cmd = apply_timeout_scope(cmd)
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "command.txt").write_text(" ".join(map(str,cmd))+"\n", encoding="utf-8")
     print(f"\n[{exp['name']} / {combo_name}] {'warmup' if warmup else run_dir.name}")
@@ -538,12 +688,26 @@ def aggregate(session_dir: Path, run_records):
 
 
 def main():
+    global VARIANT
+    if "--variant" in sys.argv:
+        VARIANT = sys.argv[sys.argv.index("--variant") + 1]
+        if VARIANT not in VARIANTS:
+            raise SystemExit(f"unknown variant {VARIANT!r}; choose from {sorted(VARIANTS)}")
     stamp=datetime.now().strftime("%Y%m%d_%H%M%S")
-    session=RESULT_ROOT / stamp
+    session=RESULT_ROOT / (stamp + ("" if VARIANT == "current" else f"_{VARIANT}") + time_suffix())
     session.mkdir(parents=True,exist_ok=True)
-    (session/"experiment_config.json").write_text(json.dumps(EXPERIMENTS,default=str,indent=2),encoding="utf-8")
+    experiments = EXPERIMENTS
+    if "--only" in sys.argv:
+        # Comma-separated substrings of experiment names, e.g.
+        # --only comprehensive,object_attributes,missing_item_relation
+        tokens = [t for t in sys.argv[sys.argv.index("--only") + 1].split(",") if t]
+        experiments = [e for e in EXPERIMENTS if any(t in e["name"] for t in tokens)]
+        if not experiments:
+            raise SystemExit(f"--only {tokens} matches no experiment; names: "
+                             + ", ".join(e["name"] for e in EXPERIMENTS))
+    (session/"experiment_config.json").write_text(json.dumps(experiments,default=str,indent=2),encoding="utf-8")
     run_records=[]
-    for exp in EXPERIMENTS:
+    for exp in experiments:
         for combo_name in exp["backend_sets"]:
             backend,offline=BACKEND_SETS[combo_name]
             for i in range(1,exp.get("warmups",0)+1):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import heapq
 import itertools
 import json
@@ -17,6 +18,15 @@ from .components import ComponentState
 from .domain import AlignmentMove, AlignmentResult, StreamEvent
 from .cocomot_adapter import (DependencyError, load_cocomot, make_observation_encoding_classes,
                               semantic_output_guard_constraints)
+
+
+class DeadlineReached(BaseException):
+    """Raised when an exact solver query is cut off by the anytime deadline.
+
+    Derives from BaseException on purpose: generic ``except Exception``
+    handlers in candidate generation must not swallow it and misread an
+    interrupted query as "infeasible" (which could prune the optimum).
+    """
 
 
 @dataclass(frozen=True)
@@ -161,6 +171,26 @@ class SearchState:
     signatures: Dict[Tuple[Any, ...], int] = field(default_factory=dict)
     current_goal: Optional[int] = None
     current_assignment: Optional[JointAssignment] = None
+    # Frontier re-expansion postponed until the symbolic exact search runs.
+    deferred_frontier_events: Set[str] = field(default_factory=set)
+    # Anytime mode: sound upper limit for the proven prefix lower bound when the
+    # previous result (or a merge parent) was not certified (see _solve_impl).
+    sound_lb_override: Optional[float] = None
+    # Alternative complete witnesses of the last prefix (--incumbent-beam).
+    beam: List[int] = field(default_factory=list)
+    beam_continuations: List[int] = field(default_factory=list)
+    # Explicit move lists of beam witnesses (predecessor chains can be partial).
+    witness_moves_by_node: Dict[int, Tuple[Any, ...]] = field(default_factory=dict)
+    # Explicit move list of the certified boundary (previous result).
+    boundary_witness_moves: Tuple[Any, ...] = ()
+    attributes_changed: bool = False
+    new_objects_update: bool = False
+    # Nodes whose JODAP must be re-solved after changed observations before
+    # they may enter OPEN (see _rebuild_open_for_changed_observations).
+    pending_revalidation: Set[int] = field(default_factory=set)
+    invalid_after_revalidation: Set[int] = field(default_factory=set)
+    revalidation_push_pending: bool = False
+    deferred_bound_grew: bool = False
     current_event_ids: FrozenSet[str] = frozenset()
     current_objects: FrozenSet[str] = frozenset()
     current_attribute_observations: int = 0
@@ -328,6 +358,9 @@ class JODAPSolver:
         # CoCoMoT Encoding here allowed constraints from unselected transitions
         # to leak into fallback/offline queries.
         self.ExactEncoding, _ = make_observation_encoding_classes(self.mods.Encoding)
+        self._context_build_estimate: Dict[Any, float] = {}
+        self._context_build_size: Dict[Any, float] = {}
+        self.deadline: Optional[float] = None
         self.stats: Dict[str, int] = {
             "prepared_builds": 0,
             "prepared_hits": 0,
@@ -622,6 +655,42 @@ class JODAPSolver:
             "symbolic_list_guard_fallbacks": 0,
             "symbolic_list_guard_subsets_avoided": 0,
         }
+        # New counters (validity guard, exact-sync checks, ...) start at 0.
+        for _k in ("lazy_path_exact_sync_rejections", "stale_incumbents_discarded",
+                   "validity_failures", "validity_unrecovered", "validity_breakdown_mismatches",
+                   "depth_bound_ub_extensions", "pending_incumbents_adopted",
+                   "cooptimal_boundary_sync_attempts", "cooptimal_boundary_sync_hits",
+                   "log_reexplanation_attempts", "log_reexplanation_candidates",
+                   "log_reexplanation_proven", "certified_goals_anchored",
+                   "smt_fallback_queries", "smt_fallback_unsat", "smt_fallback_sat",
+                   "smt_fallback_unknown", "smt_fallback_unconverted",
+                   "smt_fallback_seconds_x1000", "smt_fallback_lazy_conversions",
+                   "frontier_expansions", "frontier_expansions_avoided",
+                   "update_incumbents_kept", "anytime_lb_clamps",
+                   "anytime_uncertified_results", "anytime_interrupted_expansions",
+                   "anytime_interrupted_revalidations", "log_extension_seeds",
+                   "smt_fallback_improved", "smt_fallback_skipped_no_time",
+                   "token_path_repair_attempts", "token_path_repair_candidates",
+                   "token_path_repair_successes", "beam_continuation_attempts",
+                   "beam_continuation_improvements", "deviation_priority_rankings",
+                   "replay_reexplanation_attempts", "replay_reexplanation_improvements",
+                   "log_extension_incumbents", "repair_witness_unreconstructible",
+                   "joint_lb_evaluations", "joint_lb_improvements", "joint_lb_gain_total",
+                   "joint_lb_seconds_x1000", "joint_lb_certifications",
+                   "merge_joint_lower_bounds", "order_normalisations",
+                   "new_object_bound_clamps", "lp_candidate_attempts",
+                   "deadline_interrupted_queries", "deadline_interrupted_updates",
+                   "deadline_all_log_results", "deadline_skipped_context_builds",
+                   "deadline_previous_result_extensions", "smt_fallback_skipped_predicted",
+                   "lp_candidate_unschedulable", "lp_candidate_infeasible",
+                   "lp_candidate_improvements", "lp_heuristic_evaluations",
+                   "lp_heuristic_raises", "lp_heuristic_seconds_x1000",
+                   "token_path_binding_mismatch",
+                   "structural_replay_passes",
+                   "structural_replay_unverified", "structural_replay_failures",
+                   "projection_lb_evaluations",
+                   "projection_lb_improvements", "projection_lb_gain_total"):
+            self.stats.setdefault(_k, 0)
         # Set by the local delta checker when it declines only because a
         # historical dependency could not be certified from the retained
         # witness.  The backend then tries one fixed-path exact extension before
@@ -893,13 +962,10 @@ class JODAPSolver:
                     cv = self._coerce(value)
                     if cv is not None:
                         vals[name] = cv
-            unit = next((u for u in component.units if u.event and u.event.event_id == eid), None)
-            if unit is not None:
-                for upd in unit.attribute_updates:
-                    if upd.attribute in declared and upd.attribute not in vals:
-                        cv = self._coerce(upd.value)
-                        if cv is not None:
-                            vals[upd.attribute] = cv
+            # Only event attributes are event data.  Object-attribute updates
+            # carried by the same unit are object observations; they are handled
+            # by the soft object-attribute terms (as in the SMT reference) and
+            # must not be compared against transition data variables.
             events.append(self.mods.Event(seq, e.activity, e.timestamp, list(e.objects), vals))
 
         objattrs = component.observation_formula.current_object_attributes()
@@ -1204,6 +1270,20 @@ class JODAPSolver:
         solver._incremental = True
         encoding = self.ExactEncoding(solver, net, trace)
 
+        # Anytime mode: building an exact-query context cannot be interrupted
+        # part-way, so do not start one that is unlikely to finish before the
+        # deadline (estimate: the component's last build time).
+        deadline = getattr(self, "deadline", None)
+        if deadline is not None:
+            last = self._context_build_estimate.get(component.component_id, 0.0)
+            last_size = self._context_build_size.get(component.component_id)
+            size = float(max(1, int(capacity)) * max(1, len(component.objects)))
+            if last_size:
+                last = last * max(1.0, size / last_size) ** 2
+            if deadline - time.perf_counter() < 1.2 * last + 0.2:
+                self.stats["deadline_skipped_context_builds"] += 1
+                raise DeadlineReached()
+
         t0 = time.perf_counter()
         guarded_profiles = []
         for _t in getattr(net, "_transitions", ()):
@@ -1299,6 +1379,9 @@ class JODAPSolver:
             self.stats["checkpoint_context_build_seconds_ms"] += int(round(1000.0 * encode_seconds))
         self._diag("context_build_done", component=component.component_id, capacity=int(capacity),
                    elapsed_seconds=encode_seconds, checkpoint_specialized=(boundary is not None))
+        self._context_build_estimate[component.component_id] = float(encode_seconds)
+        self._context_build_size[component.component_id] = float(
+            max(1, int(capacity)) * max(1, len(component.objects)))
         return prepared
 
     def _prepare(self, component: ComponentState, state: SearchState,
@@ -1307,8 +1390,8 @@ class JODAPSolver:
                  canonical_fresh_bindings: Optional[Dict[int, str]] = None) -> PreparedJODAP:
         """Return the smallest reusable eager context that can encode this query.
 
-        For ordinary searches this is the persistent initial-state context used
-        by earlier versions.  For a temporary state rooted at a certified online
+        For ordinary searches this is the persistent initial-state context.
+        For a temporary state rooted at a certified online
         checkpoint, instant 0 is instead fixed to the retained concrete boundary
         marking/token-data witness and only the suffix depth is encoded.  The
         checkpoint context also receives a conservative object-domain slice; if
@@ -1496,6 +1579,28 @@ class JODAPSolver:
         except Exception:
             return float(value.as_fraction())
 
+    def _bounded_check(self, ctx):
+        """``ctx.check()`` limited by the anytime deadline (if any).
+
+        An ``unknown`` answer at or after the deadline raises DeadlineReached
+        instead of being treated like ``unsat``.
+        """
+        deadline = getattr(self, "deadline", None)
+        if deadline is None:
+            return ctx.check()
+        remaining = deadline - time.perf_counter()
+        if remaining <= 0:
+            raise DeadlineReached()
+        ctx.set("timeout", max(1, int(remaining * 1000)))
+        try:
+            status = ctx.check()
+        finally:
+            ctx.set("timeout", 600000)
+        if str(status) == "unknown" and time.perf_counter() >= deadline - 0.05:
+            self.stats["deadline_interrupted_queries"] += 1
+            raise DeadlineReached()
+        return status
+
     def _minimize_incremental(self, prepared: PreparedJODAP, objective: Any,
                               max_cost: int, lower_bound: int = 0,
                               upper_bound_hint: Optional[int] = None) \
@@ -1530,10 +1635,10 @@ class JODAPSolver:
         # A satisfiable query at that bound proves the child optimum immediately.
         ctx.push()
         ctx.add(objective <= lb)
-        status = ctx.check()
+        status = self._bounded_check(ctx)
         if status == z3.sat:
             ctx.add(objective == lb)
-            status2 = ctx.check()
+            status2 = self._bounded_check(ctx)
             if status2 == z3.sat:
                 model = ctx.model()
                 ctx.pop()
@@ -1543,7 +1648,7 @@ class JODAPSolver:
 
         ctx.push()
         ctx.add(objective <= int(max_cost))
-        status = ctx.check()
+        status = self._bounded_check(ctx)
         if status != z3.sat:
             ctx.pop()
             return None, None, time.perf_counter() - t0
@@ -1554,7 +1659,7 @@ class JODAPSolver:
             mid = (lo + hi) // 2
             ctx.push()
             ctx.add(objective <= mid)
-            status = ctx.check()
+            status = self._bounded_check(ctx)
             ctx.pop()
             if status == z3.sat:
                 hi = mid
@@ -1565,7 +1670,7 @@ class JODAPSolver:
 
         ctx.push()
         ctx.add(objective == lo)
-        status = ctx.check()
+        status = self._bounded_check(ctx)
         if status != z3.sat:
             ctx.pop()
             return None, None, time.perf_counter() - t0
@@ -1666,6 +1771,44 @@ class JODAPSolver:
                 return []
             columns.append(list(value) if "LIST" in typ else [value])
         return [tuple(x) for x in itertools.product(*columns)]
+
+    @staticmethod
+    def _exact_sync_unconsumed(net, place, arc, binding: Dict[str, Any],
+                               marked_tokens, required) -> Optional[Tuple[str, ...]]:
+        """Return a marked token left behind in violation of exact synchronization.
+
+        For an exact-synchronization input arc, e.g. ``(o:ORDER, P:PRODUCT LIST)``,
+        every token of the place whose scalar components equal the scalar part of
+        the binding must be consumed (all products of the bound order).  Tokens of
+        other anchors are unaffected.  ``marked_tokens`` are the object tuples
+        currently in ``place``; ``required`` are the tuples the binding consumes.
+        Returns one offending token, or ``None`` if the firing respects exactness.
+        """
+        from . import cocomot_adapter as _adapter
+        if _adapter.EXACT_SYNC_MODE == "upstream":
+            return None
+        try:
+            if not net.is_exact_sync_arc(place["id"], arc["target"]):
+                return None
+        except Exception:
+            return None
+        entries = [(n, t) for (n, t) in arc.get("inscription", []) if t not in net._data_types]
+        anchor = {}
+        for pos, (name, typ) in enumerate(entries):
+            if "LIST" in typ:
+                continue
+            value = binding.get(name)
+            if value is None:
+                return None
+            anchor[pos] = value
+        required_set = {tuple(t) for t in required}
+        for tok in marked_tokens:
+            tok = tuple(tok)
+            if len(tok) != len(entries):
+                continue
+            if all(tok[pos] == val for pos, val in anchor.items()) and tok not in required_set:
+                return tok
+        return None
 
     def _lazy_guard(self, component: ComponentState, net, transition,
                     binding: Dict[str, Any], solver, data_vars: Dict[str, Any]):
@@ -2103,6 +2246,13 @@ class JODAPSolver:
                 place = next(p for p in net._places if p["id"] == arc["source"])
                 toks = self._lazy_arc_tokens(net, place, arc.get("inscription", []), binding)
                 if not toks:
+                    self.stats["lazy_path_fallbacks"] += 1
+                    return None
+                if self._exact_sync_unconsumed(net, place, arc, binding,
+                                               marking[place["id"]], toks) is not None:
+                    # Exact synchronization violated: this binding is not a
+                    # legal firing.  Let the exact eager encoding decide.
+                    self.stats["lazy_path_exact_sync_rejections"] += 1
                     self.stats["lazy_path_fallbacks"] += 1
                     return None
                 data_names = [n for n, typ in arc.get("inscription", []) if typ in net._data_types]
@@ -3322,12 +3472,10 @@ class JODAPSolver:
                         solver.eq(v, solver.num(oid)) for v in encoding._object_vars[mi]
                     ]))
 
+                # Event data only; object-attribute updates are object
+                # observations (soft object-attribute terms), as in the SMT
+                # reference.
                 observed = dict(e.attributes)
-                unit = next((u for u in component.units
-                             if u.event and u.event.event_id == e.event_id), None)
-                if unit is not None:
-                    for upd in unit.attribute_updates:
-                        observed.setdefault(upd.attribute, upd.value)
                 for name, value in observed.items():
                     if name not in prepared.data_types or name not in encoding._data_vars[mi]:
                         continue
@@ -3373,6 +3521,7 @@ class JODAPSolver:
         # Candidate-specific scope. The base encoding remains permanently
         # asserted and is reused by subsequent sibling/descendant candidates.
         ctx = solver.ctx
+        entry_scopes = ctx.num_scopes()
         ctx.push()
         ctx.add(*path_constraints)
         query_encode_start = time.perf_counter()
@@ -3382,10 +3531,15 @@ class JODAPSolver:
             model_steps=len(model_steps), max_cost=max_cost, lower_bound=lower_bound,
             upper_bound_hint=provenance_upper_bound,
         )
-        model, total_cost, solve_seconds = self._minimize_incremental(
-            prepared, objective, max_cost, lower_bound=lower_bound,
-            upper_bound_hint=provenance_upper_bound,
-        )
+        try:
+            model, total_cost, solve_seconds = self._minimize_incremental(
+                prepared, objective, max_cost, lower_bound=lower_bound,
+                upper_bound_hint=provenance_upper_bound,
+            )
+        except DeadlineReached:
+            while ctx.num_scopes() > entry_scopes:
+                ctx.pop()
+            raise
         query_encode_seconds = time.perf_counter() - query_encode_start
         self._diag(
             "eager_solver_done", component=component.component_id, node=node.node_id,
@@ -3841,6 +3995,11 @@ class JODAPSolver:
         # A certified object-relation repair may deliberately use a model-side
         # set that differs by one relation; the observation itself is retained
         # unchanged and the mismatch is paid via ``extra_cost``.
+        if (model_objects_override is not None
+                and set(map(str, model_objects_override)) != set(map(str, event.objects))
+                and not getattr(self, "allow_object_relation_repairs", False)):
+            return decline("object_relation_repair_disabled",
+                           model_objects=sorted(map(str, model_objects_override)))
         binding_objects = tuple(sorted(
             model_objects_override if model_objects_override is not None else event.objects
         ))
@@ -3919,6 +4078,14 @@ class JODAPSolver:
                     place_id=place.get("id"), place_name=place.get("name", place.get("label")),
                     inscription=[(str(n), str(tp)) for n, tp in arc.get("inscription", [])],
                     binding=safe_binding_repr(binding),
+                )
+            place_tokens = [tok for (pid, tok) in marked if pid == place["id"]]
+            leftover = self._exact_sync_unconsumed(net, place, arc, binding, place_tokens, req)
+            if leftover is not None:
+                return decline(
+                    "exact_sync_token_not_consumed", stat="zero_cost_sync_marking_failures",
+                    place_id=place.get("id"), place_name=place.get("name", place.get("label")),
+                    unconsumed_token=repr(leftover), binding=safe_binding_repr(binding),
                 )
             data_names = [n for n, typ in arc.get("inscription", []) if typ in net._data_types]
             input_data_names.update(data_names)
@@ -4330,6 +4497,204 @@ class JODAPSolver:
         return result
 
 
+class ObjectProjectionBound:
+    """Admissible prefix lower bound from per-object projections.
+
+    For every object o, the observed events containing o (in stream order) are
+    aligned against o's view of the net: a token "contains o" in a place if o
+    occupies a component whose other object components are scalar, so a firing
+    that binds o moves exactly one such token per arc.  Places in which the
+    number of o-tokens depends on a LIST partner (e.g. ``order items`` for an
+    ORDER) are ignored for o, as are guards, data and exact synchronization.
+    These omissions only enlarge o's behaviour, so the projection is a
+    relaxation.  Costs are split per object: a log move costs 1 for each of its
+    objects and a visible model move 1 for each bound object, so that the sum
+    over objects of the per-object costs never exceeds the total cost.
+    Synchronous moves must bind exactly the observed objects (no
+    object-relation repair moves), hence they cost 0 in o's view only if the
+    transition label matches and binds o.
+
+    Applicability (else the bound is 0): silent transitions are object
+    creations, objects are created at most once, and no transition has two
+    object variables of the same type.
+    """
+
+    def __init__(self, net):
+        self.ok = True
+        data_types = set(getattr(net, "_data_types", ()) or ())
+        transitions = {t["id"]: t for t in getattr(net, "_transitions", [])}
+        places = {p["id"] for p in getattr(net, "_places", [])}
+        # (type) -> list of relaxed transitions
+        self.relaxed: Dict[str, List[Dict[str, Any]]] = {}
+        self.creatable: Set[str] = set()
+        self.place_index: Dict[str, Dict[Any, int]] = {}
+        per_t: Dict[Any, Dict[str, Dict[str, Any]]] = {}
+        arcs = []
+        for a in getattr(net, "_arcs", []):
+            src, tgt = a.get("source"), a.get("target")
+            if src in transitions and tgt in places:
+                tid, pid, out = src, tgt, True
+            elif tgt in transitions and src in places:
+                tid, pid, out = tgt, src, False
+            else:
+                continue
+            insc = [(str(n), str(ty)) for n, ty in (a.get("inscription") or ()) if ty not in data_types]
+            arcs.append((tid, pid, out, insc))
+        # A place is tracked for an object type only if, on *every* arc of the
+        # place, the type's component has scalar partners only; otherwise the
+        # number of tokens containing a given object is not determined by the
+        # binding on some arc (e.g. ``q6 (o, P LIST)`` produced by place order
+        # but consumed as ``(o, p)`` by pick item) and the place is ignored.
+        tracked: Dict[Tuple[Any, str], bool] = {}
+        for tid, pid, out, insc in arcs:
+            for j, (name, ty) in enumerate(insc):
+                base = ty[:-5] if ty.endswith(" LIST") else ty
+                others_scalar = all(not oty.endswith(" LIST")
+                                    for k, (_n, oty) in enumerate(insc) if k != j)
+                key = (pid, base)
+                tracked[key] = tracked.get(key, True) and others_scalar
+                if sum(1 for (_n, oty) in insc
+                       if (oty[:-5] if oty.endswith(" LIST") else oty) == base) > 1:
+                    self.ok = False  # two components of the same type in one place
+        for tid, pid, out, insc in arcs:
+            for j, (name, ty) in enumerate(insc):
+                base = ty[:-5] if ty.endswith(" LIST") else ty
+                info = per_t.setdefault(tid, {}).setdefault(
+                    name, {"type": base, "consume": [], "produce": [], "creates": False})
+                if info["type"] != base:
+                    self.ok = False
+                if name.startswith("nu") and out:
+                    info["creates"] = True
+                if not tracked.get((pid, base), False):
+                    continue
+                (info["produce"] if out else info["consume"]).append(pid)
+        for tid, vars_ in per_t.items():
+            t = transitions[tid]
+            types = [v["type"] for v in vars_.values()]
+            if len(types) != len(set(types)):
+                self.ok = False
+            if t.get("invisible", False) and not any(v["creates"] for v in vars_.values()):
+                self.ok = False
+            for name, v in vars_.items():
+                ty = v["type"]
+                idx = self.place_index.setdefault(ty, {})
+                for pid in v["consume"] + v["produce"]:
+                    idx.setdefault(pid, len(idx))
+                if v["creates"]:
+                    self.creatable.add(ty)
+                self.relaxed.setdefault(ty, []).append({
+                    "label": t.get("label"), "invisible": bool(t.get("invisible", False)),
+                    "consume": [idx[p] for p in v["consume"]],
+                    "produce": [idx[p] for p in v["produce"]], "creates": v["creates"],
+                })
+        self._cache: Dict[Tuple[str, Tuple[str, ...]], int] = {}
+
+    def object_cost(self, obj_type: str, steps: Tuple[Tuple[str, float, bool], ...],
+                    cap: float) -> float:
+        """Minimum relaxed prefix-alignment cost of one object.
+
+        ``steps`` lists the object's events in stream order as
+        ``(activity, sync_cost, sync_allowed)``: ``sync_cost`` is the object's
+        share of an unavoidable data/attribute deviation of a synchronous move
+        (see ``prefix_lower_bound``) and ``sync_allowed`` is False when no
+        synchronous move can explain the event at all.
+        """
+        if not self.ok or obj_type not in self.creatable:
+            return 0.0
+        key = (obj_type, steps)
+        if key in self._cache:
+            return self._cache[key]
+        rel = self.relaxed.get(obj_type, [])
+        nplaces = len(self.place_index.get(obj_type, {}))
+        n = len(steps)
+        start = (0, (0,) * nplaces, False)
+        best = {start: 0.0}
+        heap = [(0.0, 0, start)]
+        tie = itertools.count()
+        result = float(n)
+        limit = min(float(cap), float(n))
+        while heap:
+            cost, _t, st = heapq.heappop(heap)
+            if cost > best.get(st, cost) + 1e-12:
+                continue
+            pos, marking, created = st
+            if pos == n:
+                result = cost
+                break
+            if cost >= limit - 1e-12:
+                continue
+            label, sync_cost, sync_ok = steps[pos]
+            succs = [((pos + 1, marking, created), 1.0)]  # log move
+            for r in rel:
+                if r["creates"] and created:
+                    continue
+                m = list(marking)
+                ok = True
+                for i in r["consume"]:
+                    if m[i] <= 0:
+                        ok = False
+                        break
+                    m[i] -= 1
+                if not ok:
+                    continue
+                for i in r["produce"]:
+                    m[i] += 1
+                nst_created = created or r["creates"]
+                nm = tuple(m)
+                if r["invisible"]:
+                    succs.append(((pos, nm, nst_created), 0.0))
+                    continue
+                succs.append(((pos, nm, nst_created), 1.0))  # model move
+                if sync_ok and r["label"] == label:
+                    succs.append(((pos + 1, nm, nst_created), float(sync_cost)))  # sync move
+            for nst, c in succs:
+                nc = cost + c
+                if nc < best.get(nst, float("inf")) - 1e-12:
+                    best[nst] = nc
+                    heapq.heappush(heap, (nc, next(tie), nst))
+        result = min(result, float(n))
+        self._cache[key] = result
+        return result
+
+    def prefix_lower_bound(self, component: ComponentState,
+                           event_info: Optional[Dict[str, Tuple[bool, bool]]] = None,
+                           guard_event: Optional[str] = None) -> int:
+        """Admissible lower bound of the optimal prefix-alignment cost.
+
+        ``event_info[eid] = (sync_allowed, guard_violated)``.  For one event
+        ``guard_event`` whose every synchronous explanation violates its guard
+        under the observed values (at least one unit of data/attribute cost),
+        each of its k objects is charged 1/k when the event is explained
+        synchronously.  Only one event may carry this term: a single
+        object-attribute repair can fix the guards of several events.  The sum
+        of per-object costs never exceeds the total cost; costs are integral,
+        hence the ceiling.
+        """
+        if not self.ok:
+            return 0
+        event_info = event_info or {}
+        seq: Dict[str, List[Tuple[str, float, bool]]] = {}
+        for u in component.units:
+            ev = u.event
+            if ev is None or ev.event_id not in component.execution.event_ids:
+                continue
+            sync_ok, _violated = event_info.get(ev.event_id, (True, False))
+            share = (1.0 / len(ev.objects)) if (ev.event_id == guard_event and ev.objects) else 0.0
+            for o in ev.objects:
+                seq.setdefault(str(o), []).append((ev.activity, share, bool(sync_ok)))
+        types = component.observation_formula.object_types
+        total = 0.0
+        self.last_object_costs = {}
+        for o, steps in seq.items():
+            ty = types.get(o)
+            if ty is None:
+                continue
+            c = self.object_cost(str(ty), tuple(steps), float(len(steps)))
+            self.last_object_costs[o] = c
+            total += c
+        return int(math.ceil(total - 1e-9))
+
+
 class SymbolicIncrementalBackend:
     """Incremental A* over move structures with JODAP at each candidate node.
 
@@ -4369,6 +4734,66 @@ class SymbolicIncrementalBackend:
         self._active_components: Dict[int, ComponentState] = {}
         self._virtual_component_dependencies: Dict[int, Dict[int, Set[str]]] = {}
         self.max_object_relation_fast_cardinality = 3
+        # Object-relation repairs (synchronous moves whose model-side object set
+        # differs from the observed one) are NOT part of the alignment
+        # semantics: like CoCoMoT/[6], a synchronous move must bind exactly the
+        # observed objects; object deviations are explained by log/model moves.
+        # The legacy repair code is kept behind this flag for experimentation
+        # only; enabling it changes the cost function and breaks agreement with
+        # the exact Level-3 fallback and the SMT reference.
+        self.allow_object_relation_repairs = False
+        self.jodap.allow_object_relation_repairs = False
+        # Validity guard / route bookkeeping (see ``solve``).
+        self._safe_mode = False
+        self._route_hint: Optional[str] = None
+        self._return_path = "search"
+        self._last_certified_cost: Dict[int, int] = {}
+        self._last_certified_events: Dict[int, FrozenSet[str]] = {}
+        # Anytime mode (None = exact mode, no internal deadline).
+        self.anytime_deadline: Optional[float] = None
+        self._deadline: Optional[float] = None
+        self._smt_due: Optional[float] = None
+        self._smt_tried = False
+        self._last_proven_lb: Dict[int, float] = {}
+        self._last_result: Dict[int, Tuple[List[AlignmentMove], int]] = {}
+        self._smt_build_samples: List[Tuple[float, float]] = []
+        self._last_certified_flag: Dict[int, bool] = {}
+        # Optional Level-3 SMT strict-improvement fallback (None = off).
+        self.smt_fallback_after: Optional[float] = None
+        self.smt_fallback_timeout: float = 60.0
+        # Level-2 log re-explanation depth (trailing log moves; 0 = off) and
+        # per-object projection lower bound switch.
+        self.log_reexplanation_depth: int = 2
+        self.use_object_projection_lb: bool = True
+        self._event_lb_cache: Dict[Tuple[Any, ...], Tuple[bool, bool]] = {}
+        # Candidate-generation heuristics (all off by default; see CLI):
+        self.use_token_path_repair: bool = False      # multi-step missing-token chains
+        self.token_path_max_len: int = 3
+        self.incumbent_beam: int = 0                  # alternative witnesses kept per component
+        self.use_deviation_priority: bool = False     # rank repairs by deviating objects
+        self.use_replay_reexplanation: bool = False   # re-explain producers of blocking tokens
+        self.use_joint_lb: bool = False               # joint token-flow LP lower bound
+        # Alignment semantics: events explained in total observation order
+        # ("total", default) or only in per-object order ("per-object").
+        self.event_order: str = "total"
+        # Lower bound at merges: "joint" (joint + projection bound, sound) or
+        # "parent-sum" (sum of parent optima; needs superadditivity).
+        self.merge_lower_bound: str = "joint"
+        # Discard previous-cost bounds on updates that introduce new objects
+        # (where monotonicity is not guaranteed); --monotonicity-guard off for
+        # ablation.
+        self.monotonicity_guard: bool = True
+        # Candidates from the joint-LP solution, and the
+        # joint LP as remaining-cost estimate of the exact search.
+        self.use_lp_candidates: bool = False
+        self.use_lp_heuristic: bool = False
+        self.smt_incremental: bool = False            # persistent base encoding for SMT checks
+        self.smt_incremental_headroom: float = 1.5
+        self._smt_backend_obj = None
+        self._smt_outcome = ""
+        self._cocomot_root = cocomot_root
+        self._model_path = model_path
+        self._fixed_objects = fixed_objects
 
         # Before reopening unrestricted A*, explore a small exact neighbourhood
         # around the retained certified prefix.  Candidate repairs are ordered
@@ -4385,6 +4810,25 @@ class SymbolicIncrementalBackend:
         # parsed net avoids constructing a CoCoMoT encoding merely to test hard
         # synchronization compatibility of the connecting event.
         self.net_metadata = net
+        # Object types that occur as members of LIST inscriptions (e.g. the
+        # ITEMs of a PACKAGE); derived from the model instead of hardcoded.
+        self._list_member_types: Set[str] = set()
+        for _arc in getattr(net, "_arcs", []):
+            for _name, _typ in _arc.get("inscription", []) or []:
+                if "LIST" in str(_typ):
+                    self._list_member_types.add(str(_typ)[:str(_typ).rfind(" LIST")])
+        from .cocomot_adapter import model_depth_bound_condition
+        self._projection_bound = ObjectProjectionBound(net)
+        from .joint_bound import JointFlowBound
+        try:
+            self._joint_bound = JointFlowBound(net)
+        except Exception:
+            self._joint_bound = None
+        self._depth_bound_sound, _depth_reasons = model_depth_bound_condition(net)
+        if not self._depth_bound_sound:
+            print("[odacc] WARNING: cost-derived model-depth bound not applicable "
+                  f"({'; '.join(_depth_reasons)}); falling back to |E|+|O|+margin, "
+                  "which may cut off optimal alignments needing many model moves.", flush=True)
         self.transitions = list(net._transitions)
         self.transition_by_id = {t["id"]: t for t in self.transitions}
         self.all_transition_ids = set(self.transition_by_id)
@@ -4511,13 +4955,106 @@ class SymbolicIncrementalBackend:
             p.setdefault(a, set())
         return p
 
-    def _bound(self, component: ComponentState) -> int:
-        # Online bound grows monotonically with the observed prefix. It is not a
-        # semantic finality condition; it only prevents unbounded model-move
-        # exploration in the prototype.
+    def _bound(self, component: ComponentState, state: Optional[SearchState] = None) -> int:
+        """Model-depth bound of the symbolic search.
+
+        Base: ``|E| + |O| + margin`` (the original prototype bound).  When the
+        model satisfies ``model_depth_bound_condition`` (silent transitions only
+        create objects; every visible model move costs >= 1), an optimal
+        alignment of cost C* uses at most |E| synchronous moves, |O| silent
+        creations (the object domain is the observed objects) and C* visible
+        model moves.  With any valid upper bound U >= C* the bound
+        ``|E| + |O| + U`` therefore never cuts off an optimal alignment.
+        """
         e = len(component.execution.event_ids)
         o = len(component.objects)
-        return max(2, e + o + self.model_depth_margin)
+        base = max(2, e + o + self.model_depth_margin)
+        if not self._depth_bound_sound:
+            return base
+        ub = self._cost_upper_bound_for_depth(component, state)
+        if not math.isfinite(ub):
+            return base
+        return max(base, e + o + int(math.ceil(ub - 1e-9)))
+
+    def _cost_upper_bound_for_depth(self, component: ComponentState,
+                                    state: Optional[SearchState]) -> float:
+        """A valid upper bound on the optimal cost of the current prefix."""
+        events = component.observation_formula.events
+        cur = set(component.execution.event_ids)
+        all_log = float(sum(len(events[eid].objects) for eid in cur if eid in events))
+        cands = [all_log]
+        if state is not None and state.incumbent_assignment is not None \
+                and not state.incumbent_offline and self._incumbent_covers(component, state) \
+                and math.isfinite(float(state.upper_bound)):
+            cands.append(float(state.upper_bound))
+        # Previously certified optimum (+ log moves for everything observed since).
+        cid = int(component.component_id)
+        sources = [cid] if cid in self._last_certified_cost else \
+            [int(p) for p in (getattr(component, "merged_from", ()) or ())]
+        if sources and all(src in self._last_certified_cost for src in sources):
+            certified_events: Set[str] = set()
+            cost = 0.0
+            for src in sources:
+                cost += float(self._last_certified_cost[src])
+                certified_events |= set(self._last_certified_events.get(src, ()))
+            if certified_events <= cur:
+                cands.append(cost + sum(len(events[eid].objects)
+                                        for eid in cur - certified_events if eid in events))
+        return min(cands)
+
+    def _adopt_pending_incumbent(self, component: ComponentState, state: SearchState) -> None:
+        """Install the explicit local-repair witness of this prefix as incumbent.
+
+        Local repair records a complete witness for the current prefix even when
+        it cannot prove it optimal.  On ordinary extensions it is re-installed by
+        ``_sync_increment``; on merges and first events it previously got lost,
+        leaving only the analytic all-log upper bound for the exact search.
+        """
+        pending = state.pending_increment_incumbent_assignment
+        cost = float(state.pending_increment_incumbent_cost)
+        if pending is None or not math.isfinite(cost):
+            return
+        if state.pending_increment_incumbent_event_ids != frozenset(component.execution.event_ids):
+            return
+        events = [m.event_id for m in state.pending_increment_incumbent_moves
+                  if m.kind in ("log", "sync") and m.event_id is not None]
+        if len(events) != len(set(events)) or set(events) != set(component.execution.event_ids):
+            return
+        if state.incumbent_assignment is not None and not state.incumbent_offline \
+                and self._incumbent_covers(component, state) \
+                and float(state.upper_bound) <= cost + 1e-9:
+            return
+        state.upper_bound = cost
+        state.incumbent_moves = tuple(state.pending_increment_incumbent_moves)
+        state.incumbent_assignment = pending
+        state.incumbent_offline = False
+        self.jodap.stats["pending_incumbents_adopted"] += 1
+        self.jodap._diag("pending_incumbent_adopted", component=component.component_id,
+                         upper_bound=cost)
+
+    def _ensure_depth_bound(self, component: ComponentState, state: SearchState) -> None:
+        """Raise the model-depth bound to the cost-derived sound value before A*."""
+        new_bound = self._bound(component, state)
+        old_bound = int(state.model_bound)
+        if new_bound <= old_bound:
+            return
+        state.model_bound = new_bound
+        self.jodap.stats["depth_bound_ub_extensions"] += 1
+        # Nodes at depth >= old bound could not generate model successors.
+        for nid in sorted(state.closed_ids):
+            if self._stop_requested(component, state):
+                # Not completed: restore the old bound so that the
+                # re-expansion is repeated by the next exact search.
+                state.model_bound = old_bound
+                self.jodap.stats["anytime_interrupted_expansions"] += 1
+                return
+            node = state.nodes.get(nid)
+            if node is not None and old_bound <= node.model_depth < new_bound:
+                try:
+                    self._expand(component, state, node, include_model=True, only_event=None)
+                except DeadlineReached:
+                    state.model_bound = old_bound  # redo the re-expansion later
+                    raise
 
     def _heuristic(self, component: ComponentState, consumed: FrozenSet[str]) -> float:
         """Admissible lower bound for the remaining observed behavior.
@@ -4572,7 +5109,8 @@ class SymbolicIncrementalBackend:
                     state.proven_prefix_lower_bound,
                     float(self._event_zero_deviation_increment_lb(component, ev0))
                 )
-        if getattr(component, "merged_from", ()):
+        self._apply_projection_lb(component, state)
+        if getattr(component, "merged_from", ()) and not self._safe_mode:
             # Merge-specific work is completely isolated here. Ordinary updates
             # never build frontier-composition metadata.  If direct bridge
             # composition cannot be installed, the untouched root remains the
@@ -5038,16 +5576,27 @@ class SymbolicIncrementalBackend:
             # query is issued directly, with only the safe canonical nu-binding
             # restriction above.
             if assignment is None:
-                assignment = self.jodap.solve(
-                    component, state, node, require_final=False,
-                    lower_bound=candidate_lb, canonical_fresh_object=canonical_fresh
-                )
+                try:
+                    assignment = self.jodap.solve(
+                        component, state, node, require_final=False,
+                        lower_bound=candidate_lb, canonical_fresh_object=canonical_fresh
+                    )
+                except DeadlineReached:
+                    state.predecessor.pop(node.node_id, None)
+                    state.nodes.pop(node.node_id, None)
+                    raise
             if assignment is None:
                 del state.predecessor[node.node_id]
                 return None
             node.g = assignment.total_cost
             node.assignment_cost = assignment.total_cost
             state.assignments_by_node[node.node_id] = assignment
+            if self.use_lp_heuristic and not state.search_offline \
+                    and node.consumed != frozenset(component.execution.event_ids):
+                h_lp = self._lp_remaining_bound(component, state, node, assignment)
+                if h_lp is not None and h_lp > node.h + 1e-9:
+                    node.h = float(h_lp)
+                    self.jodap.stats["lp_heuristic_raises"] += 1
 
             # If an exact query has already produced a complete current-prefix
             # alignment of cost zero, global optimality follows immediately from
@@ -5055,9 +5604,10 @@ class SymbolicIncrementalBackend:
             # pruning so sibling generation can stop without hundreds of further
             # JODAP calls.
             if not state.search_offline and node.consumed == frozenset(component.execution.event_ids) \
-                    and assignment.total_cost <= 1e-9:
+                    and assignment.total_cost <= 1e-9 \
+                and self._witness_moves(state, node) is not None:
                 state.upper_bound = 0.0
-                state.incumbent_moves = tuple(self._path(state, node.node_id))
+                state.incumbent_moves = self._witness_moves(state, node)
                 state.incumbent_assignment = assignment
                 state.incumbent_offline = False
                 state.current_goal = node.node_id
@@ -5099,22 +5649,32 @@ class SymbolicIncrementalBackend:
 
         if assignment is not None and not state.search_offline \
                 and node.consumed == frozenset(component.execution.event_ids):
-            if node.g < state.upper_bound - 1e-9:
+            witness = self._witness_moves(state, node) if node.g < state.upper_bound - 1e-9 else None
+            if witness is not None:
                 state.upper_bound = node.g
-                state.incumbent_moves = tuple(self._path(state, node.node_id))
+                state.incumbent_moves = witness
                 state.incumbent_assignment = assignment
                 state.incumbent_offline = False
         return node
 
     def _enabled_events(self, component: ComponentState, node: SearchNode) -> List[StreamEvent]:
+        """Events that may be explained next.
+
+        Total observation order (default): only the earliest unexplained event
+        of the component.  ``event_order="per-object"`` restores the former
+        partial order (events sharing an object), for ablation only.
+        """
         preds = self._preds(component)
-        result = []
-        for eid in sorted(component.execution.event_ids, key=lambda x: component.observation_formula.events[x].timestamp):
-            if eid in node.consumed:
-                continue
-            if preds.get(eid, set()).issubset(node.consumed):
-                result.append(component.observation_formula.events[eid])
-        return result
+        events = component.observation_formula.events
+        order = self._observation_positions(component)
+        pending = sorted((eid for eid in component.execution.event_ids if eid not in node.consumed),
+                         key=lambda x: (order.get(x, 10**12), events[x].timestamp, x))
+        if self.event_order == "total":
+            return [events[pending[0]]] if pending else []
+        return [events[eid] for eid in pending if preds.get(eid, set()).issubset(node.consumed)]
+
+    def _observation_positions(self, component: ComponentState) -> Dict[str, int]:
+        return {u.event.event_id: u.position for u in component.units if u.event is not None}
 
     def _topological_event_order(self, component: ComponentState) -> List[str]:
         preds = self._preds(component)
@@ -5791,6 +6351,10 @@ class SymbolicIncrementalBackend:
         merge event's object set.  Thus total-cost optimality is preserved while
         producing a continuation state that the current bridge can extend.
         """
+        if not getattr(self, "allow_object_relation_repairs", False):
+            # Synchronous moves must use exactly the observed object set
+            # (same move types as the CoCoMoT/SMT formulation).
+            return None
         self.jodap.stats["merge_cooptimal_parent_rewrite_attempts"] += 1
         merge_objects = {str(o) for o in merge_event.objects}
         if not merge_objects:
@@ -5810,7 +6374,7 @@ class SymbolicIncrementalBackend:
             common = old_objects & merge_objects
             anchors = {
                 o for o in common
-                if component.observation_formula.object_types.get(o) != "ITEM"
+                if component.observation_formula.object_types.get(o) not in self._list_member_types
             }
             if not anchors:
                 continue
@@ -5981,6 +6545,20 @@ class SymbolicIncrementalBackend:
         )
         # The first composition is the independently optimal parent boundary.
         parent_lb = float(compositions[0][1].total_cost)
+        if self.merge_lower_bound == "joint":
+            # The sum of the parent optima is a lower bound only under
+            # superadditivity (no model move binding objects of two parents can
+            # make the merged prefix cheaper).  Use the joint token-flow bound
+            # and the per-object projection bound instead; both are sound
+            # unconditionally.
+            jl = self._joint_lb_value(component, force=True)
+            sound = max(float(jl or 0), float(self._projection_lb_value(component)))
+            state.proven_prefix_lower_bound = max(state.proven_prefix_lower_bound, sound)
+            self.jodap.stats["merge_joint_lower_bounds"] += 1
+            self.jodap._diag("merge_joint_lower_bound", component=component.component_id,
+                             event_id=merge_eid, joint=jl, parent_sum=parent_lb,
+                             prefix_lower_bound=float(state.proven_prefix_lower_bound))
+            parent_lb = None
         # The parent components are independently certified prefixes. Any
         # explanation of the merged prefix must pay at least their already
         # optimal accumulated cost; the bridge can add cost but cannot refund
@@ -5988,15 +6566,16 @@ class SymbolicIncrementalBackend:
         # bridge that adds *zero incremental cost* (e.g. parent cost 1 -> child
         # cost 1) is recognized as globally optimal instead of being treated as
         # a failed absolute-zero merge.
-        state.proven_prefix_lower_bound = max(
-            state.proven_prefix_lower_bound, parent_lb
-        )
-        self.jodap._diag(
-            "merge_parent_lower_bound", component=component.component_id,
-            event_id=merge_eid, parent_lower_bound=parent_lb,
-            prefix_lower_bound=float(state.proven_prefix_lower_bound),
-        )
-        if not structural_sync:
+        if parent_lb is not None:
+            state.proven_prefix_lower_bound = max(
+                state.proven_prefix_lower_bound, parent_lb
+            )
+            self.jodap._diag(
+                "merge_parent_lower_bound", component=component.component_id,
+                event_id=merge_eid, parent_lower_bound=parent_lb,
+                prefix_lower_bound=float(state.proven_prefix_lower_bound),
+            )
+        if not structural_sync and parent_lb is not None:
             # No marking/data assignment can make the bridge synchronous because
             # its hard activity/type/cardinality signature is incompatible.  The
             # independent parent optima plus the bridge log cost are therefore a
@@ -6631,45 +7210,69 @@ class SymbolicIncrementalBackend:
         path whose selected transition guards never mention the changed
         attribute keeps exactly the same JODAP optimum and can be reopened
         without another solver query.
+
+        Nodes needing revalidation are recorded in ``pending_revalidation`` and
+        enter OPEN only after being re-solved, so a stale node is never popped.
+        In exact mode the revalidation completes here; in anytime mode and with
+        SMT at Level 3 it is resumable (``_flush_revalidation``) and is finished
+        before the exact search pops its first node.
         """
         state.open_heap.clear()
         state.open_ids.clear()
         state.closed_ids.clear()
-        valid_ids = []
         available = {a for vals in component.observation_formula.current_object_attributes().values()
                      for a in vals}
         for nid in sorted(state.nodes):
             node = state.nodes[nid]
             if nid == 0:
                 node.g = 0.0
-                valid_ids.append(nid)
                 continue
             if affected_attributes is not None:
                 relevant = self._path_relevant_object_attributes(state, node, available)
                 if not (relevant & affected_attributes):
-                    valid_ids.append(nid)
                     continue
-            assignment = self.jodap.solve(component, state, node, require_final=False)
-            if assignment is None:
-                continue
-            node.g = assignment.total_cost
-            node.assignment_cost = assignment.total_cost
-            valid_ids.append(nid)
-        # Remove infeasible nodes and predecessor descendants whose parent vanished.
-        valid = set(valid_ids)
+            state.pending_revalidation.add(nid)
+        state.revalidation_push_pending = True
+        state.current_goal = None
+        state.current_assignment = None
+        if not self._defer_heavy_work():
+            self._flush_revalidation(component, state)
+
+    def _flush_revalidation(self, component: ComponentState, state: SearchState) -> bool:
+        """Re-solve pending nodes; returns False if interrupted by the deadline."""
+        for nid in sorted(state.pending_revalidation):
+            if self._stop_requested(component, state):
+                self.jodap.stats["anytime_interrupted_revalidations"] += 1
+                return False
+            node = state.nodes.get(nid)
+            if node is not None:
+                assignment = self.jodap.solve(component, state, node, require_final=False)
+                if assignment is None:
+                    state.invalid_after_revalidation.add(nid)
+                else:
+                    node.g = assignment.total_cost
+                    node.assignment_cost = assignment.total_cost
+            state.pending_revalidation.discard(nid)
+        if not state.revalidation_push_pending:
+            return True
+        # Remove infeasible nodes and descendants whose predecessor vanished.
+        valid = set(state.nodes) - set(state.invalid_after_revalidation)
         changed = True
         while changed:
             changed = False
             for nid in list(valid):
                 if nid in state.predecessor and state.predecessor[nid][0] not in valid:
-                    valid.remove(nid); changed = True
+                    valid.remove(nid)
+                    changed = True
         state.nodes = {nid: n for nid, n in state.nodes.items() if nid in valid}
         state.predecessor = {nid: x for nid, x in state.predecessor.items() if nid in valid}
         state.signatures = {self._signature(n): nid for nid, n in state.nodes.items()}
         for nid in sorted(state.nodes):
-            state.push(state.nodes[nid])
-        state.current_goal = None
-        state.current_assignment = None
+            if nid not in state.closed_ids:
+                state.push(state.nodes[nid])
+        state.invalid_after_revalidation.clear()
+        state.revalidation_push_pending = False
+        return True
 
     def _relation_repair_metadata(self, component: ComponentState, observed_objects: Iterable[str],
                                   model_objects: Iterable[str]) -> Dict[str, Any]:
@@ -6692,11 +7295,11 @@ class SymbolicIncrementalBackend:
             if component.observation_formula.object_types.get(o) not in changed_types
         }
         if not anchors:
-            # Fallback: any common non-ITEM object is a safer lifecycle anchor
-            # than an ITEM relation itself.
+            # Fallback: an object whose type never occurs as a LIST member is a
+            # safer lifecycle anchor than a LIST-member relation itself.
             anchors = {
                 o for o in (observed & model)
-                if component.observation_formula.object_types.get(o) != "ITEM"
+                if component.observation_formula.object_types.get(o) not in self._list_member_types
             }
         return {
             "relation_repair": True,
@@ -6716,6 +7319,10 @@ class SymbolicIncrementalBackend:
         a fresh deviation at every subsequent event.  This method transports the
         same extra/missing relation set across events sharing the repaired anchor.
         """
+        if not getattr(self, "allow_object_relation_repairs", False):
+            # Synchronous moves must use exactly the observed object set
+            # (same move types as the CoCoMoT/SMT formulation).
+            return None
         self.jodap.stats["object_relation_carry_attempts"] += 1
         observed = {str(o) for o in event.objects}
         try:
@@ -6757,6 +7364,43 @@ class SymbolicIncrementalBackend:
             return tuple(sorted(candidate)), row
         self.jodap.stats["object_relation_carry_misses"] += 1
         return None
+
+    def _try_cooptimal_boundary_sync(self, component: ComponentState, state: SearchState,
+                                     previous_goal: SearchNode, event_id: str,
+                                     limit: int = 24) -> bool:
+        """Level 1 from an equally optimal witness of the previous prefix.
+
+        The certified goal of the previous prefix is one of possibly several
+        co-optimal complete witnesses.  Others that the exact search has
+        already evaluated (no new solver work) may admit a zero-cost
+        synchronous extension when the selected one does not.  Such an
+        extension has cost C*_{i-1}, which is a lower bound of C*_i, so it is
+        certified exactly like an ordinary Level-1 continuation.
+        """
+        target = float(previous_goal.g)
+        if not math.isfinite(target):
+            return False
+        cands = []
+        for nid, node in state.nodes.items():
+            if nid == previous_goal.node_id or node.consumed != previous_goal.consumed:
+                continue
+            assignment = state.assignments_by_node.get(nid)
+            if assignment is None or float(assignment.total_cost) > target + 1e-9:
+                continue
+            if float(node.g) > target + 1e-9:
+                continue
+            cands.append((node.model_depth, nid))
+        if not cands:
+            return False
+        self.jodap.stats["cooptimal_boundary_sync_attempts"] += 1
+        for _depth, nid in sorted(cands)[:limit]:
+            node = state.nodes.get(nid)
+            if node is None:
+                continue
+            if self._try_zero_cost_sync_extension(component, state, node, event_id):
+                self.jodap.stats["cooptimal_boundary_sync_hits"] += 1
+                return True
+        return False
 
     def _try_zero_cost_sync_extension(self, component: ComponentState, state: SearchState,
                                       previous_goal: Optional[SearchNode],
@@ -6885,10 +7529,15 @@ class SymbolicIncrementalBackend:
                 continue
             state.current_goal = cand.node_id
             state.current_assignment = assignment
-            state.upper_bound = assignment.total_cost
-            state.incumbent_moves = tuple(self._path(state, cand.node_id))
-            state.incumbent_assignment = assignment
-            state.incumbent_offline = False
+            witness = self._witness_moves(state, cand)
+            if witness is not None:
+                state.witness_moves_by_node[cand.node_id] = witness
+                state.upper_bound = assignment.total_cost
+                state.incumbent_moves = witness
+                state.incumbent_assignment = assignment
+                state.incumbent_offline = False
+            else:
+                self.jodap.stats["repair_witness_unreconstructible"] += 1
             if assignment.total_cost <= previous_cost + 1e-9:
                 self.jodap.stats["zero_cost_sync_hits"] += 1
             # A positive extension is immediately optimal only when the
@@ -7187,6 +7836,10 @@ class SymbolicIncrementalBackend:
         already-observed certified active components; no future information is
         consulted.
         """
+        if not getattr(self, "allow_object_relation_repairs", False):
+            # Synchronous moves must use exactly the observed object set
+            # (same move types as the CoCoMoT/SMT formulation).
+            return False, False
         if parent is None or parent.node_id not in state.nodes:
             return False, False
         event = component.observation_formula.events.get(event_id)
@@ -7762,6 +8415,164 @@ class SymbolicIncrementalBackend:
 
 
 
+    def _token_paths(self, net, obj_type: str, start_places: Set[Any], target_place: Any,
+                     obj: str, component: ComponentState, max_len: int) -> List[List[Dict[str, Any]]]:
+        """Short transition chains moving one object's token to a target place.
+
+        Breadth-first search in the object's view of the net: a state is the
+        set of places that currently hold a token containing the object; a
+        transition is applicable if it can bind the object alone and every input
+        arc carrying the object's type starts in a place of the state.  Paths
+        of length 2..max_len are returned (length 1 is the one-step repair).
+        Purely a candidate generator: every path is verified afterwards.
+        """
+        def carries(arc):
+            return any((str(ty)[:-5] if str(ty).endswith(" LIST") else str(ty)) == obj_type
+                       for _n, ty in (arc.get("inscription") or ()))
+        trans = []
+        for t in net._transitions:
+            if t.get("invisible", False):
+                continue
+            ins = [a["source"] for a in net._arcs if a.get("target") == t["id"] and carries(a)]
+            outs = [a["target"] for a in net._arcs if a.get("source") == t["id"] and carries(a)]
+            if not ins and not outs:
+                continue
+            if self.jodap._lazy_binding(component, net, t, (obj,)) is None:
+                continue
+            trans.append((t, frozenset(ins), frozenset(outs)))
+        start = frozenset(start_places)
+        frontier = [(start, [])]
+        seen = {start}
+        found = []
+        for _depth in range(max_len):
+            nxt = []
+            for places, path in frontier:
+                for t, ins, outs in trans:
+                    if not ins <= places:
+                        continue
+                    new_places = (places - ins) | outs
+                    new_path = path + [t]
+                    if target_place in new_places and len(new_path) >= 2:
+                        found.append(new_path)
+                        continue
+                    if new_places not in seen:
+                        seen.add(new_places)
+                        nxt.append((new_places, new_path))
+            frontier = nxt
+            if len(found) >= 8:
+                break
+        return found[:8]
+
+    def _try_token_path_repair(self, component: ComponentState, state: SearchState,
+                               parent: Optional[SearchNode], event_id: str) -> bool:
+        """Multi-step generalisation of the one-step missing-input repair.
+
+        Pairs the missing token (the place the synchronous firing needs the
+        object in) with the remaining tokens (the places the object's tokens are
+        in at the certified boundary) and searches short chains of model moves
+        that carry the object from the latter to the former, e.g.
+        ``reorder item ; pick item`` for an item that is still out of stock.
+        Each chain plus the synchronous move is evaluated concretely from the
+        boundary; the cheapest feasible one is installed like any local
+        repair (certified only if it reaches the proven lower bound).
+        """
+        if not getattr(self, "use_token_path_repair", False):
+            return False
+        if parent is None or parent.node_id not in state.nodes:
+            return False
+        detail = getattr(self.jodap, "_last_zero_cost_sync_decline_detail", None) or {}
+        if detail.get("reason") != "required_input_token_not_marked":
+            return False
+        missing = [str(o) for o in detail.get("required_objects", ()) if o is not None]
+        place_id = detail.get("place_id")
+        if len(missing) != 1 or place_id is None:
+            return False
+        obj = missing[0]
+        event = component.observation_formula.events.get(event_id)
+        obj_type = component.observation_formula.object_types.get(obj)
+        if event is None or obj_type is None:
+            return False
+        parent_assignment = state.assignments_by_node.get(parent.node_id)
+        if parent_assignment is None and state.current_goal == parent.node_id:
+            parent_assignment = state.current_assignment
+        if parent_assignment is None:
+            return False
+        start_places = {pid for pid, tok in (parent_assignment.marking_signature or ())
+                        if obj in (tok if isinstance(tok, tuple) else (tok,))}
+        if not start_places:
+            return False
+        self.jodap.stats["token_path_repair_attempts"] += 1
+        try:
+            net = self.jodap._query_slice_static_net()
+            paths = self._token_paths(net, str(obj_type), start_places, place_id, obj,
+                                      component, self.token_path_max_len)
+        except Exception as exc:
+            self.jodap._diag("token_path_repair_decline", component=component.component_id,
+                             event_id=event_id, reason="path_search_failed", error=repr(exc))
+            return False
+        sync_transitions = list(self.visible_by_label.get(event.activity, ()))
+        best = None
+        for path in paths:
+            for sync_t in sync_transitions:
+                self.jodap.stats["token_path_repair_candidates"] += 1
+                try:
+                    focused = self._focused_state_from_boundary(state, parent.node_id)
+                    node = focused.nodes[0]
+                    suffix = []
+                    for t in path:
+                        mv = SymbolicMove("model", transition_id=t["id"], transition_label=t.get("label"))
+                        node = self._add_candidate(component, focused, node, mv, evaluate=False)
+                        if node is None:
+                            break
+                        suffix.append(mv)
+                    if node is None:
+                        continue
+                    smv = SymbolicMove("sync", event_id=event_id, transition_id=sync_t["id"],
+                                       transition_label=sync_t.get("label"))
+                    node = self._add_candidate(component, focused, node, smv, evaluate=False)
+                    if node is None:
+                        continue
+                    suffix.append(smv)
+                    # Global index of the first suffix step = length of the
+                    # parent's model run (the depth counter can differ for
+                    # nodes carrying private object-creation steps).
+                    steps = [b.get("step") for b in (parent_assignment.object_bindings or ())
+                             if b.get("step") is not None]
+                    base = (max(steps) + 1) if steps else int(parent.model_depth)
+                    assignment = self.jodap._lazy_solve_fixed_path(
+                        component, focused, node,
+                        fixed_binding_by_step={base + k: (obj,) for k in range(len(path))},
+                        accept_certified_nonzero=True)
+                    if assignment is not None:
+                        last = max((b for b in assignment.object_bindings if b.get("step") is not None),
+                                   key=lambda b: b["step"], default=None)
+                        last = last or {}
+                        bound = set(map(str, last.get("model_objects") or last.get("objects") or ()))
+                        if bound != set(map(str, event.objects)):
+                            self.jodap.stats["token_path_binding_mismatch"] += 1
+                            assignment = None
+                except Exception as exc:
+                    self.jodap._diag("token_path_repair_candidate_error",
+                                     component=component.component_id, event_id=event_id,
+                                     error=repr(exc))
+                    continue
+                if assignment is None:
+                    continue
+                if best is None or assignment.total_cost < best[0] - 1e-9:
+                    best = (float(assignment.total_cost), tuple(suffix), assignment)
+        if best is None:
+            self.jodap._diag("token_path_repair_decline", component=component.component_id,
+                             event_id=event_id, reason="no_feasible_chain", paths=len(paths))
+            return False
+        self.jodap.stats["token_path_repair_successes"] += 1
+        proven = self._install_local_repair_result(
+            component, state, parent, event_id, event,
+            float(parent_assignment.total_cost), best)
+        self.jodap._diag("token_path_repair_result", component=component.component_id,
+                         event_id=event_id, total_cost=best[0], proven=bool(proven),
+                         chain=[m.transition_label for m in best[1] if m.kind == "model"])
+        return proven
+
     def _try_one_step_missing_input_repair(
             self, component: ComponentState, state: SearchState,
             parent: Optional[SearchNode], event_id: str) -> bool:
@@ -8160,7 +8971,8 @@ class SymbolicIncrementalBackend:
         decline = getattr(self.jodap, "_last_zero_cost_sync_decline_detail", None) or {}
         if decline.get("reason") == "required_input_token_not_marked":
             if self._try_one_step_missing_input_repair(
-                    component, state, current_node, event_id):
+                    component, state, current_node, event_id) \
+                    or self._try_token_path_repair(component, state, current_node, event_id):
                 self.jodap.stats["fresh_object_sync_successes"] += 1
                 self.jodap._diag(
                     "fresh_object_sync_success", component=component.component_id,
@@ -8203,8 +9015,9 @@ class SymbolicIncrementalBackend:
         # For non-missing-token declines (or when the prioritized attempt did
         # not prove the prefix), retain the original final one-step fallback.
         if (not object_rel_handled) and decline.get("reason") != "required_input_token_not_marked" \
-                and self._try_one_step_missing_input_repair(
-                    component, state, current_node, event_id):
+                and (self._try_one_step_missing_input_repair(
+                    component, state, current_node, event_id)
+                     or self._try_token_path_repair(component, state, current_node, event_id)):
             self.jodap.stats["fresh_object_sync_successes"] += 1
             self.jodap._diag(
                 "fresh_object_sync_success", component=component.component_id,
@@ -8247,6 +9060,10 @@ class SymbolicIncrementalBackend:
         repair.  The result is accepted solely by total cost/lower-bound equality;
         no particular cost decomposition is required for correctness.
         """
+        if not getattr(self, "allow_object_relation_repairs", False):
+            # Synchronous moves must use exactly the observed object set
+            # (same move types as the CoCoMoT/SMT formulation).
+            return False
         if root is None or root.node_id not in state.nodes:
             return False
         if root.consumed or len(component.execution.event_ids) != 1:
@@ -9031,6 +9848,10 @@ class SymbolicIncrementalBackend:
         independent guard evaluator.  Unsupported/incomplete cases return
         ``None`` and fall back to the old exact path.
         """
+        if not getattr(self, "allow_object_relation_repairs", False):
+            # Synchronous moves must use exactly the observed object set
+            # (same move types as the CoCoMoT/SMT formulation).
+            return []
         spec = self.jodap.aggregate_list_guard_spec(transition)
         if spec is None:
             return None
@@ -9182,6 +10003,10 @@ class SymbolicIncrementalBackend:
         the compositional search uses the same current-component semantics so it
         can combine a relation repair with preceding model repairs.
         """
+        if not getattr(self, "allow_object_relation_repairs", False):
+            # Synchronous moves must use exactly the observed object set
+            # (same move types as the CoCoMoT/SMT formulation).
+            return []
         observed = {str(o) for o in event.objects}
         try:
             net = self.jodap._query_slice_static_net()
@@ -9346,41 +10171,30 @@ class SymbolicIncrementalBackend:
             return (reason, tuple(sorted(detail.get("guard_variables", ()) or ())))
         return (reason,)
 
-    def _try_cost_guided_local_repair(
+    def _local_repair_search(
             self, component: ComponentState, state: SearchState,
-            parent: Optional[SearchNode], event_id: str) -> bool:
-        """Compose local repairs in nondecreasing alignment cost before A*.
+            parent: SearchNode, parent_assignment: JointAssignment, event_id: str, *,
+            allow_log: bool = True, stop_cost: Optional[float] = None,
+            budget: Optional[float] = None):
+        """Cost-guided local search explaining one event from a boundary node.
 
-        The search starts at the *certified optimal prefix boundary*.  A queue
-        contains model-repair prefixes and is ordered by an admissible structural
-        cost lower bound, not by the number of edits.  At every popped boundary
-        synchronization is retried first.  Its concrete failure diagnostic then
-        generates only relevant data/object repair operators.  Model operators
-        are added afterwards and can expose a different failure on the next pop,
-        enabling chains such as ``missing pick -> guard repair -> sync``.
-
-        A feasible result is final only when it reaches the independently proven
-        prefix lower bound.  Otherwise it is installed solely as an upper-bound
-        incumbent and unrestricted A* remains the exact correctness fallback.
-        No future observation is inspected.
+        Returns ``(total_cost, suffix_moves, assignment)`` of the cheapest
+        candidate found (``None`` if none).  ``allow_log=False`` excludes the
+        plain log move (used when a log move is being re-explained), and the
+        search stops early once a candidate reaches ``stop_cost`` (default: the
+        proven prefix lower bound).  Nothing is installed in ``state``.
         """
-        if parent is None or parent.node_id not in state.nodes:
-            return False
         event = component.observation_formula.events.get(event_id)
         if event is None or event_id in parent.consumed:
-            return False
-        parent_assignment = state.assignments_by_node.get(parent.node_id)
-        if parent_assignment is None and state.current_goal == parent.node_id:
-            parent_assignment = state.current_assignment
-        if parent_assignment is None:
-            return False
+            return None
         sync_transitions = list(self.visible_by_label.get(event.activity, ()))
         if not sync_transitions:
-            return False
-
+            return None
+        if stop_cost is None:
+            stop_cost = float(state.proven_prefix_lower_bound)
         self.jodap.stats["local_repair_search_attempts"] += 1
         base_cost = float(parent_assignment.total_cost)
-        budget_limit = base_cost + self.local_repair_cost_budget
+        budget_limit = base_cost + (self.local_repair_cost_budget if budget is None else float(budget))
         model_pool = self._local_repair_transition_pool(component, state, parent, event)
 
         # (admissible additional cost, tie, transition-id sequence,
@@ -9392,7 +10206,19 @@ class SymbolicIncrementalBackend:
             float, int, Tuple[int, ...], Tuple[Optional[Tuple[str, ...]], ...]
         ]] = []
         tie = itertools.count()
-        heapq.heappush(queue, (0.0, next(tie), (), ()))
+        deviating = self._deviating_objects(component) if self.use_deviation_priority else set()
+        if deviating:
+            self.jodap.stats["deviation_priority_rankings"] += 1
+
+        def rank(bindings):
+            # Soft priority among candidates of equal accumulated cost: repairs
+            # binding an object that deviates in its own view come first.
+            last = bindings[-1] if bindings else ()
+            prio = 0 if (not deviating or not bindings
+                         or set(map(str, last or ())) & deviating) else 1
+            return (prio, next(tie))
+
+        heapq.heappush(queue, (0.0, rank(()), (), ()))
         seen: Set[Tuple[Tuple[int, ...], Tuple[Optional[Tuple[str, ...]], ...]]] = set()
         best = None
         generated = solver_calls = 0
@@ -9401,7 +10227,7 @@ class SymbolicIncrementalBackend:
         # A log move is a legitimate local operator and gives an immediate,
         # solver-free incumbent.  It does not change the retained model state.
         log_extra = float(len(event.objects))
-        if base_cost + log_extra <= budget_limit + 1e-9:
+        if allow_log and base_cost + log_extra <= budget_limit + 1e-9:
             log_assignment = self._assignment_with_total_cost(parent_assignment, base_cost + log_extra)
             best = (float(log_assignment.total_cost), (SymbolicMove("log", event_id=event_id),), log_assignment)
 
@@ -9412,7 +10238,7 @@ class SymbolicIncrementalBackend:
             cost_budget=float(self.local_repair_cost_budget),
             candidate_cap=int(self.local_repair_max_candidates))
 
-        while queue and generated < self.local_repair_max_candidates:
+        while queue and generated < self.local_repair_max_candidates and not self._deadline_passed():
             add_lb, _tie, seq, seq_bindings = heapq.heappop(queue)
             state_key = (seq, seq_bindings)
             if state_key in seen:
@@ -9520,7 +10346,7 @@ class SymbolicIncrementalBackend:
                                 self.jodap.stats["local_repair_search_pruned_budget"] += 1
                                 continue
                             heapq.heappush(
-                                queue, (new_lb, next(tie), new_seq, new_bindings)
+                                queue, (new_lb, rank(new_bindings), new_seq, new_bindings)
                             )
                             targeted_model_enqueued = True
                             self.jodap.stats["local_repair_missing_token_targeted_enqueues"] += 1
@@ -9592,11 +10418,11 @@ class SymbolicIncrementalBackend:
                                 best = (total, tuple(suffix_prefix + [sync_move]), repaired)
                             break
 
-                if best is not None and best[0] <= state.proven_prefix_lower_bound + 1e-9:
+                if best is not None and best[0] <= stop_cost + 1e-9:
                     queue.clear()
                     break
 
-            if best is not None and best[0] <= state.proven_prefix_lower_bound + 1e-9:
+            if best is not None and best[0] <= stop_cost + 1e-9:
                 break
 
             # Generate further model/control-flow repairs.  There is deliberately
@@ -9639,14 +10465,527 @@ class SymbolicIncrementalBackend:
                 if base_cost + new_lb > budget_limit + 1e-9:
                     self.jodap.stats["local_repair_search_pruned_budget"] += 1
                     continue
-                heapq.heappush(queue, (new_lb, next(tie), new_seq, new_bindings))
+                heapq.heappush(queue, (new_lb, rank(new_bindings), new_seq, new_bindings))
 
         self.jodap.stats["local_repair_search_max_depth"] = max(
             int(self.jodap.stats.get("local_repair_search_max_depth", 0)), max_depth)
         if best is None:
             self.jodap.stats["local_repair_search_fallbacks"] += 1
-            return False
+        return best
 
+    def _try_cost_guided_local_repair(
+            self, component: ComponentState, state: SearchState,
+            parent: Optional[SearchNode], event_id: str) -> bool:
+        """Compose local repairs in nondecreasing alignment cost before A*.
+
+        The search starts at the *certified optimal prefix boundary*.  A queue
+        contains model-repair prefixes and is ordered by an admissible structural
+        cost lower bound, not by the number of edits.  At every popped boundary
+        synchronization is retried first.  Its concrete failure diagnostic then
+        generates only relevant data/object repair operators.  Model operators
+        are added afterwards and can expose a different failure on the next pop,
+        enabling chains such as ``missing pick -> guard repair -> sync``.
+
+        A feasible result is final only when it reaches the independently proven
+        prefix lower bound.  Otherwise it is installed solely as an upper-bound
+        incumbent and unrestricted A* remains the exact correctness fallback.
+        No future observation is inspected.
+        """
+        if parent is None or parent.node_id not in state.nodes:
+            return False
+        event = component.observation_formula.events.get(event_id)
+        if event is None or event_id in parent.consumed:
+            return False
+        parent_assignment = state.assignments_by_node.get(parent.node_id)
+        if parent_assignment is None and state.current_goal == parent.node_id:
+            parent_assignment = state.current_assignment
+        if parent_assignment is None:
+            return False
+        base_cost = float(parent_assignment.total_cost)
+        best = self._local_repair_search(component, state, parent, parent_assignment, event_id)
+        if best is None:
+            return False
+        return self._install_local_repair_result(
+            component, state, parent, event_id, event, base_cost, best,
+            generated=0, solver_calls=0)
+
+    def _try_trailing_log_reexplanation(self, component: ComponentState, state: SearchState,
+                                        previous_goal: SearchNode, event_id: str,
+                                        max_tail: int = 2) -> bool:
+        """Level-2 operator: re-explain trailing log moves of the certified witness.
+
+        Ordinary continuation and local repair only *append* moves to the
+        certified witness of the previous prefix.  When that witness ends with
+        log moves, a co-optimal witness that explains the same events by model
+        behaviour (e.g. ``create package`` model move + synchronous
+        ``send package`` instead of a ``send package`` log move) may be the only
+        one the new event can extend cheaply.  For k = 1..max_tail trailing log
+        moves, this operator restarts at the witness node before them,
+        re-explains those events with log moves excluded, and then explains the
+        new event (log allowed).  The result is a feasible alignment of the
+        current prefix; it is certified only if it reaches the proven prefix
+        lower bound, otherwise it is an upper-bound incumbent for exact search.
+        """
+        if previous_goal is None or previous_goal.node_id not in state.nodes:
+            return False
+        events = component.observation_formula.events
+        event = events.get(event_id)
+        if event is None:
+            return False
+        prev_assignment = state.assignments_by_node.get(previous_goal.node_id)
+        if prev_assignment is None and state.current_goal == previous_goal.node_id:
+            prev_assignment = state.current_assignment
+        if prev_assignment is None:
+            return False
+        prev_cost = float(prev_assignment.total_cost)
+        cap = float(state.upper_bound)
+        best = None  # (total, ancestor, suffix_moves, assignment)
+        tail: List[SymbolicMove] = []
+        nid = previous_goal.node_id
+        self.jodap.stats["log_reexplanation_attempts"] += 1
+        for _k in range(max_tail):
+            if nid not in state.predecessor:
+                break
+            pnid, move = state.predecessor[nid]
+            if move.kind != "log" or move.event_id is None or move.event_id not in events:
+                break
+            tail.insert(0, move)
+            nid = pnid
+            ancestor = state.nodes.get(nid)
+            if ancestor is None:
+                break
+            tail_cost = float(sum(len(events[m.event_id].objects) for m in tail))
+            anc_assignment = state.assignments_by_node.get(nid)
+            if anc_assignment is None:
+                # Log moves do not change the model state: the ancestor's
+                # witness is the previous one minus the removed log costs.
+                anc_assignment = self._assignment_with_total_cost(
+                    prev_assignment, prev_cost - tail_cost)
+                state.assignments_by_node[nid] = anc_assignment
+            limit = min(cap, best[0] if best is not None else float("inf"))
+            res = self._explain_event_chain(
+                component, state, ancestor, anc_assignment,
+                [m.event_id for m in tail], event_id, limit)
+            if res is not None and (best is None or res[0] < best[0] - 1e-9):
+                best = (res[0], ancestor, res[1], res[2])
+                if best[0] <= state.proven_prefix_lower_bound + 1e-9:
+                    break
+        if best is None:
+            return False
+        total, ancestor, suffix_moves, assignment = best
+        self.jodap.stats["log_reexplanation_candidates"] += 1
+        proven = self._install_local_repair_result(
+            component, state, ancestor, event_id, event, prev_cost,
+            (total, tuple(suffix_moves), assignment))
+        if proven:
+            self.jodap.stats["log_reexplanation_proven"] += 1
+        self.jodap._diag("log_reexplanation_result", component=component.component_id,
+                         event_id=event_id, total_cost=float(total), proven=bool(proven),
+                         reexplained=[m.event_id for m in suffix_moves
+                                      if m.kind == "sync" and m.event_id != event_id])
+        return proven
+
+    def _explain_event_chain(self, component: ComponentState, state: SearchState,
+                             start: SearchNode, start_assignment: JointAssignment,
+                             reexplain_ids: Sequence[str], new_event_id: str,
+                             limit: float, allow_log_all: bool = False):
+        """Explain ``reexplain_ids`` (no log moves) and then ``new_event_id``.
+
+        Returns ``(total, suffix_moves, assignment)`` or ``None``.  Intermediate
+        nodes are materialized in ``state`` so that the next local search can
+        start from them.
+        """
+        events = component.observation_formula.events
+        node, assignment = start, start_assignment
+        acc: List[SymbolicMove] = []
+        chain = list(reexplain_ids) + [new_event_id]
+        for idx, eid in enumerate(chain):
+            last = idx == len(chain) - 1
+            log_cost = float(len(events[eid].objects))
+            res = self._local_repair_search(
+                component, state, node, assignment, eid,
+                allow_log=last or allow_log_all,
+                stop_cost=None if last else float(assignment.total_cost),
+                budget=max(self.local_repair_cost_budget, log_cost))
+            if res is None:
+                return None
+            total, suffix, assn = res
+            if total >= limit - 1e-9:
+                return None
+            for mv in suffix:
+                nxt = self._add_candidate(component, state, node, mv, evaluate=False)
+                if nxt is None:
+                    return None
+                node = nxt
+            node.g = float(total)
+            node.assignment_cost = float(total)
+            state.assignments_by_node[node.node_id] = assn
+            assignment = assn
+            acc.extend(suffix)
+        return float(assignment.total_cost), tuple(acc), assignment
+
+    def _blocking_exact_sync_token(self, component: ComponentState, state: SearchState,
+                                   assignment: JointAssignment, event) -> Optional[Tuple[Any, Tuple]]:
+        """A boundary token that prevents every synchronous explanation of ``event``.
+
+        For each transition with the event's label, the binding is fixed by the
+        observed objects; an exact-synchronization input arc then requires all
+        tokens of the bound anchor to be consumed.  Returns ``(place_id, token)``
+        of a left-over anchor token, or None.
+        """
+        net = self.jodap._query_slice_static_net()
+        marking = {}
+        for pid, tok in (assignment.marking_signature or ()):
+            marking.setdefault(pid, []).append(tuple(tok) if isinstance(tok, tuple) else (tok,))
+        found = None
+        for t in self.visible_by_label.get(event.activity, ()):
+            binding = self.jodap._lazy_binding(component, net, t, tuple(event.objects))
+            if binding is None:
+                continue
+            blocked = None
+            for arc in net._arcs:
+                if arc.get("target") != t["id"]:
+                    continue
+                place = next((p for p in net._places if p["id"] == arc["source"]), None)
+                if place is None:
+                    continue
+                try:
+                    req = self.jodap._lazy_arc_tokens(net, place, arc.get("inscription", []), binding)
+                except Exception:
+                    continue
+                left = self.jodap._exact_sync_unconsumed(net, place, arc, binding,
+                                                         marking.get(place["id"], []), req)
+                if left is not None:
+                    blocked = (place["id"], tuple(left))
+                    break
+            if blocked is None:
+                return None  # some synchronous explanation is not blocked
+            found = blocked
+        return found
+
+    def _try_replay_reexplanation(self, component: ComponentState, state: SearchState,
+                                  previous_goal: SearchNode, event_id: str) -> bool:
+        """Re-explain the event whose output blocks the new event's synchronization.
+
+        Replay symptom: the new event cannot synchronize because a token of the
+        bound anchor (e.g. ``(p, i)`` in ``package ready``) would remain
+        unconsumed.  The synchronous move of the witness that produced it is
+        located; from the node before it, that event is logged and all later
+        events plus the new one are explained again by local repair.  The result
+        is a candidate (incumbent), certified only if it reaches the proven
+        lower bound.
+        """
+        if not self.use_replay_reexplanation or previous_goal is None:
+            return False
+        event = component.observation_formula.events.get(event_id)
+        prev_assignment = state.assignments_by_node.get(previous_goal.node_id)
+        if prev_assignment is None and state.current_goal == previous_goal.node_id:
+            prev_assignment = state.current_assignment
+        if event is None or prev_assignment is None:
+            return False
+        try:
+            blocking = self._blocking_exact_sync_token(component, state, prev_assignment, event)
+        except Exception:
+            blocking = None
+        if blocking is None:
+            return False
+        place_id, token = blocking
+        token_objs = {str(x) for x in token}
+        events = component.observation_formula.events
+        net = self.jodap._query_slice_static_net()
+        # Walk the witness backwards to the synchronous producer of the token.
+        chain = []
+        nid = previous_goal.node_id
+        producer_idx = None
+        while nid in state.predecessor:
+            pnid, move = state.predecessor[nid]
+            chain.append((pnid, move))
+            if producer_idx is None and move.kind == "sync" and move.event_id in events \
+                    and token_objs <= set(map(str, events[move.event_id].objects)) \
+                    and any(a.get("source") == move.transition_id and a.get("target") == place_id
+                            for a in net._arcs):
+                producer_idx = len(chain) - 1
+                break
+            nid = pnid
+        if producer_idx is None:
+            return False
+        self.jodap.stats["replay_reexplanation_attempts"] += 1
+        ancestor_id, producer_move = chain[producer_idx]
+        later = [m.event_id for _p, m in reversed(chain[:producer_idx])
+                 if m.kind in ("log", "sync") and m.event_id is not None]
+        ancestor = state.nodes.get(ancestor_id)
+        if ancestor is None:
+            return False
+        anc_assignment = state.assignments_by_node.get(ancestor_id)
+        if anc_assignment is None:
+            anc_assignment = self.jodap._lazy_solve_fixed_path(
+                component, state, ancestor, accept_certified_nonzero=True)
+            if anc_assignment is None:
+                return False
+            state.assignments_by_node[ancestor_id] = anc_assignment
+        # Log the producer event, then explain the later events and the new one.
+        log_move = SymbolicMove("log", event_id=producer_move.event_id)
+        log_node = self._add_candidate(component, state, ancestor, log_move, evaluate=False)
+        if log_node is None:
+            return False
+        log_cost = float(len(events[producer_move.event_id].objects))
+        log_assignment = self._assignment_with_total_cost(
+            anc_assignment, float(anc_assignment.total_cost) + log_cost)
+        log_node.g = float(log_assignment.total_cost)
+        log_node.assignment_cost = log_node.g
+        state.assignments_by_node[log_node.node_id] = log_assignment
+        res = self._explain_event_chain(component, state, log_node, log_assignment,
+                                        later, event_id, float(state.upper_bound),
+                                        allow_log_all=True)
+        self.jodap._diag("replay_reexplanation_result", component=component.component_id,
+                         event_id=event_id, producer=producer_move.event_id,
+                         blocking_place=place_id, total_cost=None if res is None else res[0])
+        if res is None:
+            return False
+        total, suffix, assignment = res
+        self.jodap.stats["replay_reexplanation_improvements"] += 1
+        return self._install_local_repair_result(
+            component, state, ancestor, event_id, event, float(prev_assignment.total_cost),
+            (total, (log_move,) + tuple(suffix), assignment))
+
+    def _moves_cover(self, moves, event_ids) -> bool:
+        events = [m.event_id for m in moves if m.kind in ("log", "sync") and m.event_id is not None]
+        return len(events) == len(set(events)) and set(events) == set(event_ids)
+
+    def _witness_moves(self, state: SearchState, node: SearchNode,
+                       candidates=()) -> Optional[Tuple[SymbolicMove, ...]]:
+        """Explicit move list of ``node``'s alignment, or None if not reconstructible.
+
+        A move list is accepted only if it explains exactly the node's consumed
+        events and has exactly ``node.model_depth`` model/synchronous steps
+        (so that moves and the assignment's model steps line up).  Tried in
+        order: explicit candidates; the moves along the predecessor chain
+        appended to the nearest ancestor with a recorded move list; the plain
+        predecessor path.
+        """
+        def ok(moves):
+            return (moves and self._moves_cover(moves, node.consumed)
+                    and sum(1 for m in moves if m.kind in ("model", "sync")) == int(node.model_depth))
+        for moves in candidates:
+            if ok(tuple(moves)):
+                return tuple(moves)
+        tail = []
+        cur = node.node_id
+        while True:
+            known = state.witness_moves_by_node.get(cur)
+            if known:
+                full = tuple(known) + tuple(reversed(tail))
+                if ok(full):
+                    return full
+                break
+            if cur not in state.predecessor:
+                break
+            prev, mv = state.predecessor[cur]
+            tail.append(mv)
+            cur = prev
+        path = tuple(self._path(state, node.node_id))
+        return path if ok(path) else None
+
+    def _install_log_extension_incumbent(self, component: ComponentState, state: SearchState,
+                                         previous_goal: SearchNode, new_events,
+                                         previous_witness_moves=()) -> None:
+        assignment = state.assignments_by_node.get(previous_goal.node_id)
+        if assignment is None and state.current_goal == previous_goal.node_id:
+            assignment = state.current_assignment
+        if assignment is None or not previous_goal.consumed.isdisjoint(new_events):
+            return
+        events = component.observation_formula.events
+        base_moves = self._witness_moves(state, previous_goal, [previous_witness_moves])
+        if base_moves is None:
+            return
+        order = [u.event.event_id for u in component.units
+                 if u.event is not None and u.event.event_id in new_events]
+        node = previous_goal
+        total = float(assignment.total_cost)
+        for eid in order:
+            nxt = self._add_candidate(component, state, node, SymbolicMove("log", event_id=eid),
+                                      evaluate=False)
+            if nxt is None:
+                return
+            total += float(len(events[eid].objects))
+            node = nxt
+        log_assignment = self._assignment_with_total_cost(assignment, total)
+        node.g = total
+        node.assignment_cost = total
+        state.assignments_by_node[node.node_id] = log_assignment
+        state.upper_bound = total
+        state.incumbent_moves = base_moves + tuple(SymbolicMove("log", event_id=eid) for eid in order)
+        state.incumbent_assignment = log_assignment
+        state.incumbent_offline = False
+        state.witness_moves_by_node[node.node_id] = state.incumbent_moves
+        self.jodap.stats["log_extension_incumbents"] += 1
+
+    def _advance_beam(self, component: ComponentState, state: SearchState) -> None:
+        """Carry every kept alternative witness forward to the current prefix.
+
+        A witness of the previous prefix is extended by a synchronous move of
+        the new event if the cheap synchronous check succeeds, otherwise by a
+        log move (always feasible).  The cheapest continuation replaces the
+        incumbent if it is cheaper; it can be certified only through the usual
+        lower-bound comparison.  Continuations stay in the beam, so alternative
+        lineages survive while they are temporarily more expensive (a cheaper
+        prefix explanation can block later synchronizations).
+        """
+        if self.incumbent_beam <= 0 or not state.beam:
+            state.beam_continuations = []
+            return
+        events = component.observation_formula.events
+        all_events = frozenset(component.execution.event_ids)
+        conts = []
+        primaries = []
+        secondaries = []
+        skips = collections.Counter()
+        trace = []
+        for nid in list(state.beam):
+            node = state.nodes.get(nid)
+            assignment = state.assignments_by_node.get(nid)
+            if node is None or assignment is None or not node.consumed <= all_events:
+                skips["missing_node_or_assignment" if (node is None or assignment is None)
+                      else "not_prefix"] += 1
+                continue
+            if state.attributes_changed and nid in state.pending_revalidation:
+                # Changed object attributes can change a witness's cost; new
+                # objects alone cannot (they only enlarge the domain).
+                continue
+            base_moves = self._witness_moves(state, node, [state.witness_moves_by_node.get(nid, ())])
+            if base_moves is None:
+                skips["no_witness_moves"] += 1
+                continue
+            new = all_events - node.consumed
+            if len(new) != 1:
+                skips[f"new_events_{len(new)}"] += 1
+                continue
+            eid = next(iter(new))
+            self.jodap.stats["beam_continuation_attempts"] += 1
+            saved = (state.upper_bound, state.incumbent_moves, state.incumbent_assignment,
+                     state.incumbent_offline, state.current_goal, state.current_assignment)
+            # Fast paths raise the proven lower bound assuming their starting
+            # node is the optimal boundary.  A beam witness is not, so such
+            # bounds are invalid here and are discarded.
+            saved_lb = state.proven_prefix_lower_bound
+            saved_route = self._route_hint
+            cont = None
+            try:
+                ev_objs = set(map(str, events[eid].objects))
+                known = {str(o) for _pid, tok in (assignment.marking_signature or ())
+                         for o in (tok if isinstance(tok, tuple) else (tok,))}
+                state.current_goal = None  # detect a new goal produced by the extension
+                if ev_objs - known:
+                    self._try_fresh_object_zero_cost_sync_extension(component, state, node, eid)
+                else:
+                    self._try_zero_cost_sync_extension(component, state, node, eid)
+                # The extensions return True only when the result is certified;
+                # an uncertified continuation still leaves a new complete goal.
+                if state.current_goal is not None:
+                    goal = state.nodes.get(state.current_goal) if state.current_goal is not None else None
+                    # The extension only replaces the incumbent when it is
+                    # cheaper, so its moves must come from the new node's own
+                    # chain (ending at a node with a recorded move list).
+                    moves = self._witness_moves(state, goal) if goal is not None else None
+                    if goal is not None and goal.consumed == all_events \
+                            and state.current_assignment is not None and moves is not None:
+                        state.witness_moves_by_node[goal.node_id] = moves
+                        cont = (float(state.current_assignment.total_cost), goal, state.current_assignment)
+                    else:
+                        skips["sync_without_witness"] += 1
+            except Exception:
+                cont = None
+            (state.upper_bound, state.incumbent_moves, state.incumbent_assignment,
+             state.incumbent_offline, state.current_goal, state.current_assignment) = saved
+            state.proven_prefix_lower_bound = saved_lb
+            self._route_hint = saved_route
+            if cont is not None:
+                trace.append((nid, float(assignment.total_cost), "sync", cont[0]))
+            children = [cont] if cont is not None else []
+            # The log continuation is always kept as an alternative lineage:
+            # logging an event can be costlier now but avoid blocking later
+            # synchronous moves.
+            log_move = SymbolicMove("log", event_id=eid)
+            log_node = self._add_candidate(component, state, node, log_move, evaluate=False)
+            if log_node is not None:
+                total = float(assignment.total_cost) + float(len(events[eid].objects))
+                log_assignment = self._assignment_with_total_cost(assignment, total)
+                log_node.g = total
+                log_node.assignment_cost = total
+                state.assignments_by_node[log_node.node_id] = log_assignment
+                state.witness_moves_by_node[log_node.node_id] = base_moves + (log_move,)
+                if all(c[1].node_id != log_node.node_id for c in children):
+                    children.append((total, log_node, log_assignment))
+                    trace.append((nid, float(assignment.total_cost), "log", total))
+            if not children:
+                continue
+            children.sort(key=lambda c: c[0])
+            primaries.append(children[0])
+            secondaries.extend(children[1:])
+            conts.extend(children)
+        seen_ids = []
+        for c in sorted(primaries, key=lambda c: c[0]) + sorted(secondaries, key=lambda c: c[0]):
+            if c[1].node_id not in seen_ids:
+                seen_ids.append(c[1].node_id)
+        state.beam_continuations = seen_ids
+        self.jodap._diag("beam_advance", component=component.component_id,
+                         beam=list(state.beam), events=len(all_events),
+                         continuations=[(round(c[0], 1), c[1].node_id) for c in conts],
+                         skips=dict(skips), trace=trace,
+                         upper_bound=float(state.upper_bound))
+        if not conts:
+            return
+        best_cost, best_node, best_assignment = min(conts, key=lambda c: c[0])
+        best_moves = state.witness_moves_by_node.get(best_node.node_id)
+        if best_moves is not None and self._moves_cover(best_moves, all_events) \
+                and best_cost < float(state.upper_bound) - 1e-9:
+            state.upper_bound = best_cost
+            state.incumbent_moves = tuple(best_moves)
+            state.incumbent_assignment = best_assignment
+            state.incumbent_offline = False
+            self.jodap.stats["beam_continuation_improvements"] += 1
+            self.jodap._diag("beam_continuation_improvement", component=component.component_id,
+                             upper_bound=best_cost)
+
+    def _update_beam(self, component: ComponentState, state: SearchState) -> None:
+        """Keep continuations of the previous beam first, then other complete witnesses."""
+        if self.incumbent_beam <= 0:
+            state.beam = []
+            return
+        all_events = frozenset(component.execution.event_ids)
+        chosen = []
+        for nid in getattr(state, "beam_continuations", []) or []:
+            if nid != state.current_goal and nid in state.nodes \
+                    and state.nodes[nid].consumed == all_events and nid in state.assignments_by_node:
+                chosen.append(nid)
+        others = []
+        for nid, node in state.nodes.items():
+            if nid == state.current_goal or nid in chosen or node.consumed != all_events:
+                continue
+            assignment = state.assignments_by_node.get(nid)
+            if assignment is None:
+                continue
+            others.append((float(assignment.total_cost), node.model_depth, nid))
+        others.sort()
+        chosen += [nid for _c, _d, nid in others]
+        usable = []
+        for nid in chosen:
+            moves = self._witness_moves(state, state.nodes[nid], [state.witness_moves_by_node.get(nid, ())])
+            if moves is not None:
+                state.witness_moves_by_node[nid] = moves
+                usable.append(nid)
+        state.beam = usable[:self.incumbent_beam]
+        state.beam_continuations = []
+        # The current goal is the primary lineage; make sure the beam also
+        # contains it implicitly at the next update by adding it in front.
+        if state.current_goal is not None and state.current_goal in state.assignments_by_node:
+            state.beam = [state.current_goal] + state.beam[:max(0, self.incumbent_beam - 1)]
+
+    def _install_local_repair_result(self, component: ComponentState, state: SearchState,
+                                     parent: SearchNode, event_id: str, event, base_cost: float,
+                                     best, *, generated: int = 0, solver_calls: int = 0,
+                                     prefix_moves: Optional[Sequence[SymbolicMove]] = None) -> bool:
+        """Install a local-repair candidate as node, incumbent and (if proven) goal."""
         total, suffix_moves, assignment = best
         # Keep the witness path explicitly.  ``_add_candidate`` canonicalizes
         # by signature and may return an already-existing node; in that case
@@ -9654,7 +10993,11 @@ class SymbolicIncrementalBackend:
         # not necessarily the repair path that produced ``assignment``.
         # Correctness of the upper bound depends on carrying the actual complete
         # witness, so compose it directly from the certified boundary path.
-        explicit_witness_moves = tuple(self._path(state, parent.node_id)) + tuple(suffix_moves)
+        prefix = self._witness_moves(
+            state, parent,
+            [tuple(prefix_moves or ()), state.witness_moves_by_node.get(parent.node_id, ()),
+             tuple(getattr(state, "boundary_witness_moves", ()) or ())])
+        explicit_witness_moves = None if prefix is None else prefix + tuple(suffix_moves)
         node = parent
         for mv in suffix_moves:
             nxt = self._add_candidate(component, state, node, mv, evaluate=False)
@@ -9669,11 +11012,13 @@ class SymbolicIncrementalBackend:
         state.push(node)
         self.jodap.stats["local_repair_search_hits"] += 1
 
-        if total < state.upper_bound - 1e-9:
+        if explicit_witness_moves is not None and total < state.upper_bound - 1e-9:
             state.upper_bound = total
             state.incumbent_moves = explicit_witness_moves
             state.incumbent_assignment = assignment
             state.incumbent_offline = False
+        elif explicit_witness_moves is None:
+            self.jodap.stats["repair_witness_unreconstructible"] += 1
 
         complete = node.consumed == frozenset(component.execution.event_ids)
         proven = bool(complete and total <= state.proven_prefix_lower_bound + 1e-9)
@@ -9689,7 +11034,8 @@ class SymbolicIncrementalBackend:
             # of ``_sync_increment``: the incremental graph is deliberately
             # rebuilt/reseeded before unrestricted A*.  The explicit witness is
             # only an upper bound; it never certifies optimality by itself.
-            if complete and total < state.pending_increment_incumbent_cost - 1e-9:
+            if complete and explicit_witness_moves is not None \
+                    and total < state.pending_increment_incumbent_cost - 1e-9:
                 consumed = frozenset(
                     m.event_id for m in explicit_witness_moves
                     if m.kind in ("log", "sync") and m.event_id is not None
@@ -9819,6 +11165,19 @@ class SymbolicIncrementalBackend:
         new_attr_map = {(o, a): v for o, a, v in attr_snapshot}
         changed_attr_names = {a for (o, a) in set(old_attr_map) | set(new_attr_map)
                               if old_attr_map.get((o, a)) != new_attr_map.get((o, a))}
+        # Attribute changes of objects that already existed can change the
+        # cost of existing witnesses; first observations of new objects' own
+        # attributes cannot (no existing witness binds those objects).
+        # Monotonicity of the optimal prefix cost (C*_i <= C*_{i+1}) holds for
+        # updates that do not enlarge the object domain.  If the update
+        # introduces new objects, bounds derived from the previous cost are not
+        # valid; only the domain-independent bounds (projection, joint) are
+        # used for this update (applied through the sound-bound clamp).
+        state.new_objects_update = bool(new_objects)
+        state.attributes_changed = any(
+            old_attr_map.get((o, a)) != new_attr_map.get((o, a))
+            for (o, a) in set(old_attr_map) | set(new_attr_map)
+            if o in state.current_objects)
         observations_changed = new_objects or bool(changed_attr_names) \
             or attr_count != state.current_attribute_observations
         old_bound = state.model_bound
@@ -9837,10 +11196,42 @@ class SymbolicIncrementalBackend:
             ev_lb = component.observation_formula.events.get(eid_lb)
             if ev_lb is not None:
                 inc_lb = self._event_zero_deviation_increment_lb(component, ev_lb)
+                inherited = self._sound_lb_after_uncertified(component)
+                base = float(previous_goal.g) if inherited is None else inherited
                 state.proven_prefix_lower_bound = max(
                     state.proven_prefix_lower_bound,
-                    float(previous_goal.g) + float(inc_lb)
+                    base + float(inc_lb)
                 )
+                if inherited is not None:
+                    state.sound_lb_override = inherited + float(inc_lb)
+        self._apply_projection_lb(component, state)
+
+        # The previous incumbent is complete only for the previous observed
+        # prefix.  Invalidate it *before* any fast path runs: a fast path that
+        # proves a positive cost only installs its witness as incumbent when it
+        # improves the current upper bound, so a stale cost-0 incumbent of the
+        # previous prefix would otherwise survive and be returned (bug fixed:
+        # stale alignment without the new event at fresh-object updates).
+        if new_events or observations_changed:
+            previous_witness_moves = tuple(state.incumbent_moves or ())
+            state.boundary_witness_moves = ()
+            if previous_goal is not None and self._moves_cover(previous_witness_moves,
+                                                                previous_goal.consumed):
+                state.boundary_witness_moves = previous_witness_moves
+                state.witness_moves_by_node[previous_goal.node_id] = previous_witness_moves
+            state.upper_bound = float("inf")
+            state.incumbent_moves = ()
+            state.incumbent_assignment = None
+            state.incumbent_offline = False
+            # Immediately install the trivially feasible "previous witness +
+            # log moves for the new events" as incumbent, so that every
+            # interruptible step of this update can stop at the anytime
+            # deadline (work only stops when a complete alignment exists).
+            # Its cost is unaffected by new objects; changed object attributes
+            # could change it, so it is skipped then.
+            if previous_goal is not None and new_events and not changed_attr_names:
+                self._install_log_extension_incumbent(component, state, previous_goal, new_events,
+                                                      previous_witness_moves)
 
         # Fresh observed objects (for example a new PACKAGE on ``create package``)
         # make ``observations_changed`` true.  Try the certified-boundary local
@@ -9851,6 +11242,9 @@ class SymbolicIncrementalBackend:
             eid_fresh = next(iter(new_events))
             if self._try_fresh_object_zero_cost_sync_extension(
                     component, state, previous_goal, eid_fresh):
+                added = float(state.upper_bound) - float(previous_goal.g)
+                self._route_hint = ("direct:fresh_object_sync" if added <= 1e-9
+                                    else "local_repair:fresh_object_repair")
                 state.current_event_ids = frozenset(component.execution.event_ids)
                 state.current_objects = frozenset(component.objects)
                 state.current_attribute_observations = attr_count
@@ -9859,13 +11253,8 @@ class SymbolicIncrementalBackend:
                     node.h = self._heuristic(component, node.consumed)
                 return
 
-        # The previous incumbent is complete only for the previous observed
-        # prefix. Do not let it prune extensions for the newly enlarged prefix.
-        if new_events or observations_changed:
-            state.upper_bound = float("inf")
-            state.incumbent_moves = ()
-            state.incumbent_assignment = None
-            state.incumbent_offline = False
+        # (The previous-prefix incumbent has already been invalidated above,
+        # before any fast path could consult it.)
         if observations_changed or new_events:
             # New observations may split object-symmetry classes or make a
             # previously equivalent operational state distinguishable.
@@ -9893,6 +11282,11 @@ class SymbolicIncrementalBackend:
         if len(new_events) == 1 and not observations_changed:
             eid = next(iter(new_events))
             fast_ok = self._try_zero_cost_sync_extension(component, state, previous_goal, eid)
+            fast_route = "direct:zero_cost_sync" if fast_ok else None
+            if (not fast_ok) and previous_goal is not None:
+                fast_ok = self._try_cooptimal_boundary_sync(component, state, previous_goal, eid)
+                if fast_ok:
+                    fast_route = "direct:cooptimal_boundary"
             object_rel_handled = False
             if (not fast_ok) and previous_goal is not None:
                 object_rel_handled, object_rel_proven = \
@@ -9904,12 +11298,16 @@ class SymbolicIncrementalBackend:
                 fast_ok = self._try_guard_data_deviation_sync_extension(
                     component, state, previous_goal, eid
                 )
+                if fast_ok and fast_route is None:
+                    fast_route = "local_repair:guard_data"
             extra_event_handled = False
             if (not fast_ok) and previous_goal is not None and not object_rel_handled:
                 extra_event_handled, extra_event_proven = self._try_extra_event_log_fast_path(
                     component, state, previous_goal, eid
                 )
                 fast_ok = extra_event_proven
+                if fast_ok and fast_route is None:
+                    fast_route = "local_repair:extra_event_log"
             if (not fast_ok) and previous_goal is not None and not object_rel_handled:
                 # If the duplicate-event lower-bound proof was unavailable, an
                 # exact fixed synchronous extension may still find a zero-cost
@@ -9917,6 +11315,8 @@ class SymbolicIncrementalBackend:
                 fast_ok = self._try_zero_cost_prepared_sync_extension(
                     component, state, previous_goal, eid
                 )
+                if fast_ok and fast_route is None:
+                    fast_route = "direct:prepared_sync"
             if (not fast_ok) and previous_goal is not None \
                     and not extra_event_handled and not object_rel_handled:
                 # Missing-event deviations benefit from a one-model-step repair.
@@ -9926,6 +11326,12 @@ class SymbolicIncrementalBackend:
                 fast_ok = self._try_one_step_missing_input_repair(
                     component, state, previous_goal, eid
                 )
+                if fast_ok and fast_route is None:
+                    fast_route = "local_repair:one_step_missing_input"
+                if not fast_ok:
+                    fast_ok = self._try_token_path_repair(component, state, previous_goal, eid)
+                    if fast_ok and fast_route is None:
+                        fast_route = "local_repair:token_path"
             if (not fast_ok) and previous_goal is not None:
                 # Multi-deviation case: combine the already-defined repair
                 # semantics in a bounded cost-directed neighbourhood before
@@ -9935,6 +11341,18 @@ class SymbolicIncrementalBackend:
                 fast_ok = self._try_cost_guided_local_repair(
                     component, state, previous_goal, eid
                 )
+                if fast_ok and fast_route is None:
+                    fast_route = "local_repair:cost_guided"
+                if not fast_ok and self.log_reexplanation_depth > 0:
+                    fast_ok = self._try_trailing_log_reexplanation(
+                        component, state, previous_goal, eid,
+                        max_tail=self.log_reexplanation_depth)
+                    if fast_ok and fast_route is None:
+                        fast_route = "local_repair:log_reexplanation"
+                if not fast_ok and self.use_replay_reexplanation:
+                    fast_ok = self._try_replay_reexplanation(component, state, previous_goal, eid)
+                    if fast_ok and fast_route is None:
+                        fast_route = "local_repair:replay_reexplanation"
                 if not fast_ok:
                     # Prefer the explicit witness handed off by the local search.
                     # This remains valid even when canonical node reuse makes the
@@ -9969,6 +11387,7 @@ class SymbolicIncrementalBackend:
                                 upper_bound=float(local_ub), source="generic_current_prefix",
                             )
             if fast_ok:
+                self._route_hint = fast_route or "local_repair:fast_path"
                 state.current_event_ids = frozenset(component.execution.event_ids)
                 state.current_objects = frozenset(component.objects)
                 state.current_attribute_observations = attr_count
@@ -9993,6 +11412,7 @@ class SymbolicIncrementalBackend:
                         if warm is not None:
                             state.current_goal = warm.node_id
                             state.current_assignment = assignment
+                        self._route_hint = "local_repair:provenance_focused"
                         state.upper_bound = assignment.total_cost
                         state.incumbent_moves = tuple(moves)
                         state.incumbent_assignment = assignment
@@ -10006,21 +11426,15 @@ class SymbolicIncrementalBackend:
                         return
 
         # A newly observed event creates log/sync successors from every already
-        # discovered node for which its causal predecessors have been consumed.
-        for eid in sorted(new_events):
-            for nid in list(sorted(state.nodes)):
-                node = state.nodes.get(nid)
-                if node is None:
-                    continue
-                self._expand(component, state, node, include_model=False, only_event=eid)
-
-        # If the model-depth bound grew, nodes that previously could not be
-        # extended by a model move may now gain such successors. Duplicate
-        # signatures prevent already generated paths from being inserted twice.
-        if bound_grew:
-            for node in list(state.nodes.values()):
-                if node.model_depth < state.model_bound:
-                    self._expand(component, state, node, include_model=True, only_event=None)
+        # discovered node for which its causal predecessors have been consumed;
+        # if the model-depth bound grew, nodes may gain model successors.  When
+        # Level 3 is decided by SMT immediately, this re-expansion is deferred
+        # and performed only if the symbolic search actually runs
+        # (``_flush_deferred_frontier``), so it is never skipped.
+        state.deferred_frontier_events |= set(new_events)
+        state.deferred_bound_grew = state.deferred_bound_grew or bool(bound_grew)
+        if not self._defer_heavy_work():
+            self._flush_deferred_frontier(component, state)
 
         state.current_event_ids = frozenset(component.execution.event_ids)
         state.current_objects = frozenset(component.objects)
@@ -10029,6 +11443,14 @@ class SymbolicIncrementalBackend:
 
         # A changed prefix invalidates the previous incumbent as a complete goal.
         # Recompute all heuristic values and install a fresh feasible upper bound.
+        # An incumbent installed *during this update* (e.g. a non-proving
+        # repair of a fresh-object event) already explains the current prefix
+        # and is kept if it beats the generic seed.
+        prior_incumbent = None
+        if state.incumbent_assignment is not None and not state.incumbent_offline \
+                and self._incumbent_covers(component, state):
+            prior_incumbent = (tuple(state.incumbent_moves), state.incumbent_assignment,
+                               float(state.upper_bound))
         state.upper_bound = float("inf")
         state.incumbent_moves = ()
         state.incumbent_assignment = None
@@ -10042,7 +11464,36 @@ class SymbolicIncrementalBackend:
         for nid in old_open:
             if nid in state.nodes:
                 state.push(state.nodes[nid])
+        # Cheap guaranteed upper bound: the previous result extended by log
+        # moves for the new events (log moves do not change the model state).
+        log_extension_seed = None
+        if previous_goal is not None and new_events:
+            prev_assignment = state.assignments_by_node.get(previous_goal.node_id)
+            if prev_assignment is not None and previous_goal.node_id in state.nodes:
+                try:
+                    path = tuple(self._path(state, previous_goal.node_id))
+                except Exception:
+                    path = None
+                evs = component.observation_formula.events
+                order = [u.event.event_id for u in component.units
+                         if u.event is not None and u.event.event_id in new_events]
+                if path is not None and all(e in evs for e in order):
+                    extra = float(sum(len(evs[e].objects) for e in order))
+                    assignment = self._assignment_with_total_cost(
+                        prev_assignment, float(prev_assignment.total_cost) + extra)
+                    log_extension_seed = (path + tuple(SymbolicMove("log", event_id=e) for e in order),
+                                          assignment, float(assignment.total_cost))
         self._seed_incumbent(component, state)
+        if log_extension_seed is not None and (state.incumbent_assignment is None
+                                               or log_extension_seed[2] < state.upper_bound - 1e-9):
+            state.incumbent_moves, state.incumbent_assignment, state.upper_bound = log_extension_seed
+            state.incumbent_offline = False
+            self.jodap.stats["log_extension_seeds"] += 1
+        if prior_incumbent is not None and (state.incumbent_assignment is None
+                                            or prior_incumbent[2] < state.upper_bound - 1e-9):
+            state.incumbent_moves, state.incumbent_assignment, state.upper_bound = prior_incumbent
+            state.incumbent_offline = False
+            self.jodap.stats["update_incumbents_kept"] += 1
         # Restore a complete feasible witness found by the compositional local
         # search if it beats the generic all-log seed.  This is only an upper
         # bound: unrestricted A* remains responsible for proving whether a
@@ -10071,6 +11522,37 @@ class SymbolicIncrementalBackend:
                 state.incumbent_moves = tuple(moves)
                 state.incumbent_assignment = assignment
                 state.incumbent_offline = False
+
+    def _flush_deferred_frontier(self, component: ComponentState, state: SearchState) -> None:
+        """Perform postponed frontier re-expansion.
+
+        Interruptible by the anytime deadline: an event whose expansion was not
+        completed stays deferred (re-expanding it later is idempotent because
+        duplicate successor signatures are ignored), so later exact searches
+        remain complete.
+        """
+        events = sorted(state.deferred_frontier_events)
+        grew = state.deferred_bound_grew
+        if events or grew:
+            self.jodap.stats["frontier_expansions"] += 1
+        for eid in events:
+            for nid in list(sorted(state.nodes)):
+                if self._stop_requested(component, state):
+                    self.jodap.stats["anytime_interrupted_expansions"] += 1
+                    return
+                node = state.nodes.get(nid)
+                if node is None:
+                    continue
+                self._expand(component, state, node, include_model=False, only_event=eid)
+            state.deferred_frontier_events.discard(eid)
+        if grew:
+            for node in list(state.nodes.values()):
+                if self._stop_requested(component, state):
+                    self.jodap.stats["anytime_interrupted_expansions"] += 1
+                    return
+                if node.model_depth < state.model_bound:
+                    self._expand(component, state, node, include_model=True, only_event=None)
+            state.deferred_bound_grew = False
 
     def _make_result(self, component: ComponentState, state: SearchState,
                      node: Optional[SearchNode], assignment: JointAssignment, mode: str,
@@ -10162,7 +11644,823 @@ class SymbolicIncrementalBackend:
             },
         )
 
+    # ------------------------------------------------------------------
+    # Public entry point: certified result + independent validity guard
+    # ------------------------------------------------------------------
+    def _incumbent_covers(self, component: ComponentState, state: SearchState) -> bool:
+        """Whether the incumbent explains exactly the observed events of the prefix."""
+        events = [m.event_id for m in state.incumbent_moves
+                  if m.kind in ("log", "sync") and m.event_id is not None]
+        return (len(events) == len(set(events))
+                and set(events) == set(component.execution.event_ids))
+
+    def _validate_prefix_result(self, component: ComponentState, state: Optional[SearchState],
+                                result: Optional[AlignmentResult]) -> List[str]:
+        """Return violated invariants of a returned prefix alignment.
+
+        The checks are independent of *how* the result was obtained:
+        (1) the log projection explains every observed event exactly once,
+        (2) a synchronous move matches the event label and binds exactly the
+            observed objects (no object-relation repair moves),
+        (3) the cost is not below the proven prefix lower bound, and
+        (4) the cost is not below the previously certified cost of the same
+            component (prefix-cost monotonicity).
+        """
+        problems: List[str] = []
+        if result is None or not result.feasible or result.cost is None:
+            return ["no feasible result"]
+        events = [m.event_id for m in result.moves if m.kind in ("log", "sync")]
+        if len(events) != len(set(events)) or set(events) != set(component.execution.event_ids):
+            missing = sorted(set(component.execution.event_ids) - set(events))
+            extra = sorted(set(events) - set(component.execution.event_ids))
+            problems.append(f"log projection != observed prefix (missing={missing}, extra={extra})")
+        for m in result.moves:
+            if m.kind != "sync":
+                continue
+            ev = component.observation_formula.events.get(m.event_id)
+            if ev is None:
+                problems.append(f"sync move for unknown event {m.event_id}")
+                continue
+            if m.activity != ev.activity:
+                problems.append(f"sync label mismatch at {m.event_id}")
+            model_objs = set(m.model_objects or m.objects)
+            if not self.allow_object_relation_repairs and model_objs != set(ev.objects):
+                problems.append(f"sync object mismatch at {m.event_id}: model={sorted(model_objs)} "
+                                f"observed={sorted(ev.objects)}")
+        # Causal order: events related by the observed partial order must be
+        # explained in that order.
+        positions = {m.event_id: k for k, m in enumerate(result.moves)
+                     if m.kind in ("log", "sync") and m.event_id is not None}
+        if self.event_order == "total":
+            obs = self._observation_positions(component)
+            seq = [obs.get(m.event_id) for m in result.moves if m.kind in ("log", "sync")]
+            if any(a is None or b is None or a >= b for a, b in zip(seq, seq[1:])):
+                problems.append("events not explained in observation order")
+        for before, after in getattr(component.execution, "edges", ()) or ():
+            if before in positions and after in positions and positions[before] >= positions[after]:
+                problems.append(f"causal order violated: {before} must precede {after}")
+                break
+        # Independent ordered token-flow replay of the reported moves (token
+        # availability, anchored exact synchronization, non-vacuous firing).
+        # Undecidable cases (ambiguous bindings) are counted, not rejected.
+        try:
+            from .structural_replay import ordered_marking_errors
+            errors, unknown = ordered_marking_errors(
+                self.net_metadata, component, result.moves, self.jodap._lazy_binding)
+        except Exception as exc:  # the replay is a safeguard, never a crash cause
+            errors, unknown = [], f"replay failed: {exc}"
+        problems.extend(errors)
+        self.jodap.stats["structural_replay_unverified" if unknown
+                         else ("structural_replay_passes" if not errors
+                               else "structural_replay_failures")] += 1
+        if state is not None and result.cost < float(state.proven_prefix_lower_bound) - 1e-9:
+            problems.append(f"cost {result.cost} below proven lower bound "
+                            f"{state.proven_prefix_lower_bound}")
+        prev = self._last_proven_lb.get(int(component.component_id),
+                                        self._last_certified_cost.get(int(component.component_id)))
+        if prev is not None and not getattr(component, "merged_from", ()) \
+                and result.cost < prev - 1e-9:
+            problems.append(f"cost {result.cost} below the previous prefix's proven lower bound {prev}")
+        breakdown = result.cost_breakdown or {}
+        parts = sum(int(breakdown.get(k, 0)) for k in ("control_flow", "data", "object"))
+        if breakdown and parts != int(result.cost):
+            # Reporting inconsistency only (per-move reconstruction); counted,
+            # not escalated.
+            self.jodap.stats["validity_breakdown_mismatches"] += 1
+        return problems
+
+    def _deviating_objects(self, component: ComponentState) -> Set[str]:
+        """Objects whose per-object relaxed alignment cost is positive."""
+        if not self._projection_bound.ok:
+            return set()
+        self._projection_lb_value(component)
+        return {o for o, c in getattr(self._projection_bound, "last_object_costs", {}).items()
+                if c > 1e-9}
+
+    def _projection_lb_value(self, component: ComponentState) -> float:
+        probe = SearchState(component_id=component.component_id)
+        probe.proven_prefix_lower_bound = 0.0
+        saved = {k: self.jodap.stats.get(k, 0) for k in
+                 ("projection_lb_evaluations", "projection_lb_improvements", "projection_lb_gain_total")}
+        self._apply_projection_lb(component, probe)
+        self.jodap.stats.update(saved)
+        return float(probe.proven_prefix_lower_bound)
+
+    def _apply_projection_lb(self, component: ComponentState, state: SearchState) -> None:
+        """Raise the proven prefix lower bound by the per-object projection bound."""
+        if not self.use_object_projection_lb or not self._projection_bound.ok:
+            return
+        event_info, guard_event = self._event_info(component)
+        lb = float(self._projection_bound.prefix_lower_bound(component, event_info, guard_event))
+        self.jodap.stats["projection_lb_evaluations"] += 1
+        if lb > float(state.proven_prefix_lower_bound) + 1e-9:
+            self.jodap.stats["projection_lb_improvements"] += 1
+            self.jodap.stats["projection_lb_gain_total"] += int(lb - float(state.proven_prefix_lower_bound))
+            state.proven_prefix_lower_bound = lb
+
+    def _lp_remaining_bound(self, component: ComponentState, state: SearchState,
+                            node: SearchNode, assignment: JointAssignment) -> Optional[float]:
+        """Admissible remaining-cost estimate of a search node from the joint LP.
+
+        A node represents a *path structure* whose object and data bindings are
+        still open (other bindings than the cheapest evaluated one may be needed
+        later).  The joint LP over the whole prefix is therefore restricted only
+        structurally: the path's log moves stay log moves, its synchronous moves
+        keep their transition, and each transition occurs at least as often as
+        among the path's model moves; bindings remain free.  Its value bounds
+        every completion of the path, so ``h = LB_path - g`` keeps ``f = g + h``
+        admissible.
+        """
+        jb = self._joint_bound
+        if jb is None or not jb.ok:
+            return None
+        remaining = self._remaining_time()
+        if remaining is not None and remaining <= 0.5:
+            return None  # after the deadline: keep the basic (admissible) estimate
+        moves = self._witness_moves(state, node)
+        if moves is None:
+            return None
+        fixed_events: Dict[str, Any] = {}
+        counts: Dict[Any, int] = {}
+        for m in moves:
+            if m.kind == "log" and m.event_id is not None:
+                fixed_events[m.event_id] = "log"
+            elif m.kind == "sync" and m.event_id is not None:
+                fixed_events[m.event_id] = m.transition_id
+            elif m.kind == "model" and m.transition_id is not None:
+                counts[m.transition_id] = counts.get(m.transition_id, 0) + 1
+        info, _g = self._event_info(component)
+        t0 = time.perf_counter()
+        try:
+            limit = 2.0 if remaining is None else max(0.2, min(2.0, remaining - 0.3))
+            lb = jb.lower_bound(component, info, time_limit=limit, fixed_events=fixed_events,
+                                min_model_counts=counts)
+        except Exception:
+            lb = None
+        self.jodap.stats["lp_heuristic_evaluations"] += 1
+        self.jodap.stats["lp_heuristic_seconds_x1000"] += int(1000 * (time.perf_counter() - t0))
+        if lb is None:
+            return None
+        return max(0.0, float(lb) - float(assignment.total_cost))
+
+    def _try_lp_guided_candidate(self, component: ComponentState, state: SearchState) -> bool:
+        """Build a candidate alignment from the last joint-LP solution and verify it.
+
+        The schedule (which events to log or synchronize, which model moves to
+        insert and where) is replayed as a fixed path and evaluated exactly by
+        the lazy solver.  A feasible result becomes the incumbent if cheaper; it
+        is certified only through the usual lower-bound comparison.
+        """
+        jb = self._joint_bound
+        if jb is None or self._deadline_passed():
+            return False
+        schedule = jb.candidate_schedule(component)
+        self.jodap.stats["lp_candidate_attempts"] += 1
+        if not schedule:
+            self.jodap.stats["lp_candidate_unschedulable"] += 1
+            return False
+        net = self.net_metadata
+        labels = {t["id"]: t.get("label") for t in getattr(net, "_transitions", [])}
+        sym_moves: List[SymbolicMove] = []
+        fixed: Dict[int, Tuple[str, ...]] = {}
+        fresh: Dict[int, str] = {}
+        step = 0
+        events = component.observation_formula.events
+        for item in schedule:
+            if item["kind"] == "log":
+                sym_moves.append(SymbolicMove("log", event_id=item["event_id"]))
+                continue
+            tid = item["transition_id"]
+            binding = item["binding"]
+            table = jb.vars.get(tid, {})
+            objs = []
+            for name, (_ty, is_list, nu) in table.items():
+                val = binding.get(name)
+                if nu and not is_list and val is not None:
+                    fresh[step] = str(val)
+                    continue
+                if is_list:
+                    objs.extend(map(str, val or []))
+                elif val is not None:
+                    objs.append(str(val))
+            if item["kind"] == "sync":
+                sym_moves.append(SymbolicMove("sync", event_id=item["event_id"], transition_id=tid,
+                                              transition_label=labels.get(tid)))
+                objs = list(map(str, events[item["event_id"]].objects))
+            else:
+                sym_moves.append(SymbolicMove("model", transition_id=tid, transition_label=labels.get(tid)))
+            if step not in fresh:
+                fixed[step] = tuple(objs)
+            step += 1
+        node = self._materialize_warm_path_unevaluated(component, state, sym_moves)
+        if node is None:
+            return False
+        assignment = self.jodap._lazy_solve_fixed_path(
+            component, state, node, fixed_binding_by_step=fixed,
+            canonical_fresh_bindings=fresh, accept_certified_nonzero=True)
+        if assignment is None or not self._moves_cover(sym_moves, component.execution.event_ids):
+            self.jodap.stats["lp_candidate_infeasible"] += 1
+            return False
+        node.g = float(assignment.total_cost)
+        node.assignment_cost = node.g
+        state.assignments_by_node[node.node_id] = assignment
+        state.witness_moves_by_node[node.node_id] = tuple(sym_moves)
+        self.jodap._diag("lp_candidate", component=component.component_id,
+                         cost=float(assignment.total_cost), upper_bound=float(state.upper_bound))
+        if float(assignment.total_cost) < float(state.upper_bound) - 1e-9:
+            state.upper_bound = float(assignment.total_cost)
+            state.incumbent_moves = tuple(sym_moves)
+            state.incumbent_assignment = assignment
+            state.incumbent_offline = False
+            self.jodap.stats["lp_candidate_improvements"] += 1
+            return True
+        return False
+
+    def _joint_lb_value(self, component: ComponentState, force: bool = False,
+                        keep_solution: bool = False) -> Optional[int]:
+        """Joint token-flow LP bound of the current prefix (None if not applicable)."""
+        if (not self.use_joint_lb and not force) or self._joint_bound is None \
+                or not self._joint_bound.ok:
+            return None
+        event_info, _guard = self._event_info(component)
+        t0 = time.perf_counter()
+        remaining = self._remaining_time()
+        limit = 10.0 if remaining is None else max(0.5, min(10.0, remaining - 1.0))
+        try:
+            lb = self._joint_bound.lower_bound(component, event_info, time_limit=limit,
+                                               keep_solution=keep_solution)
+        except Exception as exc:
+            self.jodap._diag("joint_lb_error", component=component.component_id, error=repr(exc))
+            lb = None
+        self.jodap.stats["joint_lb_evaluations"] += 1
+        self.jodap.stats["joint_lb_seconds_x1000"] += int(1000 * (time.perf_counter() - t0))
+        return lb
+
+    def _apply_joint_lb(self, component: ComponentState, state: SearchState) -> None:
+        """Raise the proven lower bound by the joint LP bound when it can matter."""
+        if not self.use_joint_lb:
+            return
+        if state.incumbent_assignment is None or \
+                float(state.upper_bound) <= float(state.proven_prefix_lower_bound) + 1e-9:
+            return  # already certified (or nothing to certify)
+        lb = self._joint_lb_value(component, keep_solution=self.use_lp_candidates)
+        if lb is not None and self.use_lp_candidates \
+                and float(state.upper_bound) > max(float(lb), float(state.proven_prefix_lower_bound)) + 1e-9:
+            try:
+                self._try_lp_guided_candidate(component, state)
+            except Exception as exc:
+                self.jodap._diag("lp_candidate_error", component=component.component_id, error=repr(exc))
+        self.jodap._diag("joint_lb", component=component.component_id, value=lb,
+                         previous_lower_bound=float(state.proven_prefix_lower_bound),
+                         upper_bound=float(state.upper_bound),
+                         size=getattr(self._joint_bound, "last_size", None))
+        if lb is not None and lb > float(state.proven_prefix_lower_bound) + 1e-9:
+            self.jodap.stats["joint_lb_improvements"] += 1
+            self.jodap.stats["joint_lb_gain_total"] += int(lb - float(state.proven_prefix_lower_bound))
+            state.proven_prefix_lower_bound = float(lb)
+
+    def _event_info(self, component: ComponentState):
+        """Per event: (synchronous explanation possible, guard violated by every sync)."""
+        event_info: Dict[str, Tuple[bool, bool]] = {}
+        guard_event = None
+        attrs = component.observation_formula.current_object_attributes()
+        for u in component.units:
+            ev = u.event
+            if ev is None or ev.event_id not in component.execution.event_ids:
+                continue
+            # The guard flag depends on the attribute *values* of the event's
+            # objects (and the event itself), so they are part of the key.
+            key = (ev.event_id, ev.activity, tuple(sorted(map(str, ev.objects))),
+                   tuple(sorted((str(o), str(a), repr(v)) for o in ev.objects
+                                for a, v in (attrs.get(o) or {}).items())))
+            info = self._event_lb_cache.get(key)
+            if info is None:
+                inc = int(self._event_zero_deviation_increment_lb(component, ev))
+                no_sync = inc >= max(1, len(ev.objects)) and not self._has_structural_sync(component, ev)
+                info = (not no_sync, inc >= 1 and not no_sync)
+                self._event_lb_cache[key] = info
+            event_info[ev.event_id] = info
+            if info[1]:
+                guard_event = ev.event_id  # latest event with an unavoidable guard violation
+        return event_info, guard_event
+
+    def _has_structural_sync(self, component: ComponentState, event: StreamEvent) -> bool:
+        """Whether some transition with the event's label can bind exactly its objects."""
+        for t in self.visible_by_label.get(event.activity, ()):
+            if self.jodap._lazy_binding(component, self.net_metadata, t, tuple(event.objects)) is not None:
+                return True
+        return False
+
+    def _smt_backend(self):
+        if self._smt_backend_obj is None:
+            from .cocomot_adapter import CocomotBackend
+            self._smt_backend_obj = CocomotBackend(self._cocomot_root, self._model_path,
+                                                   fixed_objects=self._fixed_objects,
+                                                   quiet_solver=True)
+            self._smt_backend_obj.incremental_smt = bool(self.smt_incremental)
+            self._smt_backend_obj.inc_headroom = float(self.smt_incremental_headroom)
+        return self._smt_backend_obj
+
+    def _try_smt_certification(self, component: ComponentState,
+                               state: SearchState) -> Optional[AlignmentResult]:
+        """Level-3 fallback: settle the strict-improvement question with SMT.
+
+        Needs a complete incumbent of cost U.  The monolithic SMT formulation
+        (CoCoMoT encoding + adapter semantics, certified run bound) decides
+        whether an alignment of cost <= U-1 exists.  UNSAT certifies the
+        incumbent.  SAT yields the optimal cheaper alignment, which is converted
+        into a symbolic witness, re-evaluated by JODAP on its fixed path and
+        installed as certified goal so that later updates stay incremental.
+        Returns ``None`` (symbolic search continues) on timeout, if no incumbent
+        exists, or if the SMT witness cannot be reproduced.
+        """
+        if state.incumbent_assignment is None or state.incumbent_offline \
+                or not self._incumbent_covers(component, state) \
+                or not math.isfinite(float(state.upper_bound)):
+            return None
+        self.jodap.stats["smt_fallback_queries"] += 1
+        t0 = time.perf_counter()
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()):
+            remaining = self._remaining_time()
+            # Keep a reserve for converting and validating the result before
+            # the deadline; do not start a check that cannot finish.
+            reserve = 3.0
+            if remaining is not None and remaining < reserve + 3.0:
+                self.jodap.stats["smt_fallback_skipped_no_time"] += 1
+                return None
+            timeout = self.smt_fallback_timeout if remaining is None \
+                else min(self.smt_fallback_timeout, remaining - reserve)
+            # Building the SMT encoding cannot be interrupted and grows about
+            # quadratically with (step bound x objects): skip the check if the
+            # build alone would not finish before the deadline.
+            if remaining is not None:
+                n_events = len(component.execution.event_ids)
+                cap = max(0, int(math.ceil(float(state.upper_bound) - 1e-9)) - 1)
+                size = float((n_events + len(component.objects) + cap) * max(1, len(component.objects)))
+                predicted = self._predict_smt_build(size)
+                if predicted > remaining - reserve:
+                    self.jodap.stats["smt_fallback_skipped_predicted"] += 1
+                    self.jodap._diag("smt_fallback_skipped", component=component.component_id,
+                                     predicted_build_seconds=round(predicted, 1),
+                                     remaining_seconds=round(remaining, 1), size=size)
+                    return None
+            smt_backend = self._smt_backend()
+            status, smt_res = smt_backend.strict_improvement(
+                component, state.upper_bound, timeout_s=timeout)
+            sample = getattr(smt_backend, "last_strict_build", None)
+            if sample is not None:
+                self._smt_build_samples.append(sample)
+                smt_backend.last_strict_build = None
+        self.jodap.stats["smt_fallback_seconds_x1000"] += int(1000 * (time.perf_counter() - t0))
+        self.jodap._diag("smt_fallback_result", component=component.component_id,
+                         upper_bound=float(state.upper_bound), status=status,
+                         cost=None if smt_res is None else smt_res.cost)
+        if status == "unsat":
+            self.jodap.stats["smt_fallback_unsat"] += 1
+            self._smt_outcome = "unsat"
+            return self._make_result(component, state, None, state.incumbent_assignment, "prefix",
+                                     moves_override=state.incumbent_moves)
+        if status not in ("sat", "improved") or smt_res is None or smt_res.cost is None:
+            self.jodap.stats["smt_fallback_unknown"] += 1
+            return None
+        improved_only = status == "improved"
+        self.jodap.stats["smt_fallback_improved" if improved_only else "smt_fallback_sat"] += 1
+        # Convert the SMT alignment into a symbolic path.
+        sym_moves: List[SymbolicMove] = []
+        run = list(smt_res.model_run or [])
+        k = 0
+        for mv in smt_res.moves:
+            if mv.kind == "log":
+                sym_moves.append(SymbolicMove("log", event_id=mv.event_id))
+                continue
+            if k >= len(run):
+                return None
+            step = run[k]
+            k += 1
+            sym_moves.append(SymbolicMove(mv.kind, event_id=mv.event_id if mv.kind == "sync" else None,
+                                          transition_id=step.get("transition_id"),
+                                          transition_label=step.get("transition")))
+        node = self._materialize_warm_path_unevaluated(component, state, sym_moves)
+        if node is None:
+            self.jodap.stats["smt_fallback_unconverted"] += 1
+            return None
+        # Replay the SMT witness concretely: the model run fixes the objects of
+        # every model step (including created objects), so the lazy fixed-path
+        # solver can evaluate it without a new SMT encoding.  Only if that
+        # replay is unsupported is the path re-solved by the eager JODAP.
+        fixed = {k: tuple(step.get("objects") or ()) for k, step in enumerate(run)
+                 if not step.get("object_creation")}
+        fresh = {k: (step.get("objects") or [None])[0] for k, step in enumerate(run)
+                 if step.get("object_creation")}
+        assignment = self.jodap._lazy_solve_fixed_path(
+            component, state, node, fixed_binding_by_step=fixed,
+            canonical_fresh_bindings=fresh, accept_certified_nonzero=True)
+        if assignment is not None and abs(float(assignment.total_cost) - float(smt_res.cost)) <= 1e-9:
+            self.jodap.stats["smt_fallback_lazy_conversions"] += 1
+        else:
+            assignment = self.jodap.solve(component, state, node, require_final=False)
+        if assignment is None or abs(float(assignment.total_cost) - float(smt_res.cost)) > 1e-9:
+            self.jodap.stats["smt_fallback_unconverted"] += 1
+            self.jodap._diag("smt_fallback_unconverted", component=component.component_id,
+                             smt_cost=smt_res.cost,
+                             jodap_cost=None if assignment is None else assignment.total_cost)
+            return None
+        node.g = float(assignment.total_cost)
+        node.assignment_cost = node.g
+        state.assignments_by_node[node.node_id] = assignment
+        state.upper_bound = float(assignment.total_cost)
+        state.incumbent_moves = tuple(sym_moves)
+        state.incumbent_assignment = assignment
+        state.incumbent_offline = False
+        if improved_only:
+            # Better incumbent, optimality not proven: continue (anytime mode
+            # returns it at the deadline).
+            return None
+        state.current_goal = node.node_id
+        state.current_assignment = assignment
+        self._smt_outcome = "sat"
+        return self._make_result(component, state, node, assignment, "prefix")
+
+    def _materialize_warm_path_unevaluated(self, component: ComponentState, state: SearchState,
+                                           moves: Sequence[SymbolicMove]) -> Optional[SearchNode]:
+        """Insert a move sequence as a fresh node chain from the root (no evaluation)."""
+        if not moves or 0 not in state.nodes:
+            return None
+        parent = state.nodes[0]
+        for move in moves:
+            consumed, event_order = parent.consumed, parent.event_order
+            model_depth, model_sig = parent.model_depth, parent.model_signature
+            move_sig = parent.move_signature + ((move.kind, move.event_id, move.transition_id),)
+            if move.kind in ("log", "sync"):
+                if move.event_id in consumed:
+                    return None
+                consumed = frozenset(set(consumed) | {move.event_id})
+                event_order = event_order + (move.event_id,)
+            if move.kind in ("model", "sync"):
+                model_depth += 1
+                model_sig = model_sig + (move.transition_id,)
+            node = SearchNode(node_id=state.new_id(), consumed=consumed, event_order=event_order,
+                              model_depth=model_depth, g=float("inf"),
+                              h=self._heuristic(component, consumed), model_signature=model_sig,
+                              move_signature=move_sig)
+            state.nodes[node.node_id] = node
+            state.predecessor[node.node_id] = (parent.node_id, move)
+            parent = node
+        if state.model_bound < parent.model_depth:
+            state.model_bound = parent.model_depth
+        return parent
+
+    def _anchor_certified_goal(self, component: ComponentState, state: SearchState,
+                               result: AlignmentResult) -> None:
+        """Make the returned alignment the certified boundary of the next update.
+
+        Results returned through branch-and-bound or a lower-bound proof are the
+        stored *incumbent*; previously ``current_goal`` was left pointing at an
+        older node, so the next observation found no certified boundary and
+        skipped direct continuation and local repair (and checkpoint lineage).
+        """
+        all_events = frozenset(component.execution.event_ids)
+        goal = state.nodes.get(state.current_goal) if state.current_goal is not None else None
+        if goal is not None and goal.consumed == all_events:
+            assn = state.assignments_by_node.get(goal.node_id) or state.current_assignment
+            if assn is not None and abs(float(assn.total_cost) - float(result.cost)) <= 1e-9:
+                state.assignments_by_node.setdefault(goal.node_id, assn)
+                return
+        if state.incumbent_assignment is None or state.incumbent_offline \
+                or not self._incumbent_covers(component, state) \
+                or abs(float(state.upper_bound) - float(result.cost)) > 1e-9:
+            return
+        node = self._materialize_warm_path(component, state, state.incumbent_moves,
+                                           state.incumbent_assignment)
+        if node is None or node.consumed != all_events:
+            return
+        state.assignments_by_node[node.node_id] = state.incumbent_assignment
+        state.witness_moves_by_node[node.node_id] = tuple(state.incumbent_moves)
+        node.g = float(state.incumbent_assignment.total_cost)
+        node.assignment_cost = node.g
+        state.current_goal = node.node_id
+        state.current_assignment = state.incumbent_assignment
+        self.jodap.stats["certified_goals_anchored"] += 1
+
+    def _defer_heavy_work(self) -> bool:
+        """Postpone frontier re-expansion/revalidation into the exact-search loop.
+
+        Done whenever the SMT check or the anytime deadline is configured, so
+        that both are checked between the individual steps of that work.
+        """
+        return (not self._safe_mode) and (self.smt_fallback_after is not None
+                                          or self.anytime_deadline is not None)
+
+    def _predict_smt_build(self, size: float) -> float:
+        """Predicted SMT encoding build time (s) for size = step bound x objects.
+
+        Scaled quadratically from the closest measured build of this run; before
+        the first measurement, from a reference measurement (42 s at size 1771,
+        Order Management, 34 events / 23 objects).
+        """
+        if self._smt_build_samples:
+            ref_size, ref_t = min(self._smt_build_samples, key=lambda st: abs(math.log(st[0] / size)))
+            ref_t = max(ref_t, 0.05)
+        else:
+            ref_size, ref_t = 1771.0, 42.0
+        return ref_t * (size / max(1.0, ref_size)) ** 2
+
+    def _deadline_passed(self) -> bool:
+        return self._deadline is not None and time.perf_counter() >= self._deadline
+
+    def _stop_requested(self, component: ComponentState, state: SearchState) -> bool:
+        """Deadline passed *and* a complete alignment of the prefix can be returned.
+
+        Interruptible work stops only in that case; without a complete
+        incumbent it runs to completion (otherwise nothing could be returned).
+        """
+        due = self._deadline_passed() or (
+            self._smt_due is not None and not self._smt_tried
+            and time.perf_counter() >= self._smt_due)
+        ok = (due and state.incumbent_assignment is not None
+              and not state.incumbent_offline and self._incumbent_covers(component, state))
+        if due and not ok and not getattr(self, "_logged_no_incumbent", False):
+            self._logged_no_incumbent = True
+            events = [m.event_id for m in state.incumbent_moves if m.kind in ("log", "sync")]
+            self.jodap._diag("deadline_without_incumbent", component=component.component_id,
+                             has_incumbent=state.incumbent_assignment is not None,
+                             offline=state.incumbent_offline,
+                             incumbent_events=len(events), unique=len(set(events)),
+                             prefix_events=len(component.execution.event_ids),
+                             missing=sorted(set(component.execution.event_ids) - set(events))[:5])
+        return ok
+
+    def _remaining_time(self) -> Optional[float]:
+        if self._deadline is None:
+            return None
+        return max(0.0, self._deadline - time.perf_counter())
+
+    def _sound_lb_after_uncertified(self, component: ComponentState) -> Optional[float]:
+        """Proven lower bound inherited from uncertified predecessors (or None).
+
+        After an uncertified update, the stored boundary may be suboptimal, so
+        lower bounds derived from its cost are not valid.  What remains valid is
+        the proven lower bound of the predecessor prefix(es).
+        """
+        cid = int(component.component_id)
+        parents = [int(p) for p in (getattr(component, "merged_from", ()) or ())]
+        if cid in self._last_certified_flag:
+            if self._last_certified_flag[cid]:
+                return None
+            return float(self._last_proven_lb.get(cid, 0.0))
+        if parents and not all(self._last_certified_flag.get(p, True) for p in parents):
+            if self.merge_lower_bound == "parent-sum":
+                return float(sum(self._last_proven_lb.get(p, 0.0) for p in parents))
+            return 0.0  # joint/projection bounds are applied separately
+        return None
+
+    def _normalise_move_order(self, component: ComponentState,
+                              result: Optional[AlignmentResult]) -> None:
+        """Rearrange a result's moves into total observation order.
+
+        Moves on disjoint object sets touch disjoint tokens, so swapping them
+        preserves validity and cost.  A topological order of the dependency
+        relation (shared objects) is chosen that lists events by observation
+        position; it exists whenever the alignment is equivalent to one in
+        observation order (e.g. a merge composition, which concatenates the
+        parents' alignments).  Otherwise the moves are left unchanged and the
+        validity guard reports the order violation.
+        """
+        if result is None or not result.moves or self.event_order != "total":
+            return
+        pos = self._observation_positions(component)
+        moves = list(result.moves)
+        events = component.observation_formula.events
+
+        def objs(m):
+            if m.kind in ("log", "sync") and m.event_id in events:
+                return set(map(str, events[m.event_id].objects)) | set(map(str, m.model_objects or ()))
+            return set(map(str, m.model_objects or m.objects or ()))
+
+        ev_positions = [pos.get(m.event_id) for m in moves if m.kind in ("log", "sync")]
+        if all(a is not None and b is not None and a < b for a, b in zip(ev_positions, ev_positions[1:])):
+            return
+        n = len(moves)
+        o = [objs(m) for m in moves]
+        succ = [[j for j in range(i + 1, n) if o[i] & o[j]] for i in range(n)]
+        indeg = [0] * n
+        for i in range(n):
+            for j in succ[i]:
+                indeg[j] += 1
+        # key: events by position; a model move takes the earliest position of
+        # an event depending on it (so it is placed just in time).
+        big = 10 ** 12
+        key = [pos.get(m.event_id, big) if m.kind in ("log", "sync") else None for m in moves]
+        for i in range(n - 1, -1, -1):
+            if key[i] is None:
+                k = min((key[j] for j in succ[i] if key[j] is not None), default=big)
+                key[i] = k
+        import heapq as _hq
+        ready = [(key[i], i) for i in range(n) if indeg[i] == 0]
+        _hq.heapify(ready)
+        order = []
+        while ready:
+            _k, i = _hq.heappop(ready)
+            order.append(i)
+            for j in succ[i]:
+                indeg[j] -= 1
+                if indeg[j] == 0:
+                    _hq.heappush(ready, (key[j], j))
+        new = [moves[i] for i in order]
+        new_pos = [pos.get(m.event_id) for m in new if m.kind in ("log", "sync")]
+        if len(new) == n and all(a < b for a, b in zip(new_pos, new_pos[1:])):
+            result.moves = new
+            self.jodap.stats["order_normalisations"] += 1
+
+    def _deadline_result(self, component: ComponentState) -> AlignmentResult:
+        """Best complete alignment after an exact query was cut off by the deadline.
+
+        The incumbent if it explains the current prefix; otherwise the all-log
+        alignment (always a valid prefix alignment).  Reported as uncertified
+        (``_return_path = "deadline"``).
+        """
+        self._return_path = "deadline"
+        self.jodap.stats["deadline_interrupted_updates"] += 1
+        state = self.searches.get(component.component_id)
+        if state is not None and state.incumbent_assignment is not None \
+                and not state.incumbent_offline and self._incumbent_covers(component, state):
+            return self._make_result(component, state, None, state.incumbent_assignment,
+                                     "prefix", moves_override=state.incumbent_moves)
+        # Previous results: the component's own (extension) or its parents'
+        # (merge; their moves involve disjoint objects and can be interleaved),
+        # extended by log moves for the events they do not explain.
+        events = component.observation_formula.events
+        cid = int(component.component_id)
+        sources = [cid] if cid in self._last_result else \
+            [int(p) for p in (getattr(component, "merged_from", ()) or ())]
+        if sources and all(src in self._last_result for src in sources):
+            moves = []
+            total = 0
+            for src in sources:
+                pm, pc = self._last_result[src]
+                moves.extend(pm)
+                total += int(pc)
+            explained = {m.event_id for m in moves if m.kind in ("log", "sync")}
+            if explained <= set(component.execution.event_ids):
+                for u in component.units:
+                    ev = u.event
+                    if ev is None or ev.event_id not in component.execution.event_ids \
+                            or ev.event_id in explained:
+                        continue
+                    c = len(ev.objects)
+                    total += c
+                    moves.append(AlignmentMove(kind="log", cost=c, activity=ev.activity,
+                                               event_id=ev.event_id, objects=tuple(ev.objects)))
+                self.jodap.stats["deadline_previous_result_extensions"] += 1
+                pos = max((u.position for u in component.units), default=0)
+                return AlignmentResult(component.component_id, pos, "prefix", total, True,
+                                       moves=moves,
+                                       cost_breakdown={"total": total, "control_flow": total,
+                                                       "data": 0, "object": 0})
+        self.jodap.stats["deadline_all_log_results"] += 1
+        moves = []
+        total = 0
+        for u in component.units:
+            ev = u.event
+            if ev is None or ev.event_id not in component.execution.event_ids:
+                continue
+            c = len(ev.objects)
+            total += c
+            moves.append(AlignmentMove(kind="log", cost=c, activity=ev.activity,
+                                       event_id=ev.event_id, objects=tuple(ev.objects)))
+        pos = max((u.position for u in component.units), default=0)
+        return AlignmentResult(component.component_id, pos, "prefix", total, True, moves=moves,
+                               cost_breakdown={"total": total, "control_flow": total,
+                                               "data": 0, "object": 0})
+
+    def _previous_certified_cost(self, component: ComponentState) -> float:
+        cid = int(component.component_id)
+        if cid in self._last_certified_cost:
+            return float(self._last_certified_cost[cid])
+        parents = getattr(component, "merged_from", ()) or ()
+        return float(sum(self._last_certified_cost.get(int(p), 0) for p in parents))
+
     def solve(self, component: ComponentState, *, offline: bool = False) -> AlignmentResult:
+        """Compute an optimal (prefix) alignment and validate it.
+
+        Online results are checked by ``_validate_prefix_result``.  If any
+        invariant is violated, the update is recomputed from scratch by the
+        complete full-prefix symbolic A* with all fast paths disabled (safe
+        mode).  The certification route is recorded at the point of
+        acceptance and attached to the result.
+        """
+        if offline:
+            return self._solve_impl(component, offline=True)
+        cid = int(component.component_id)
+        prev_cost = self._previous_certified_cost(component)
+        self._route_hint = None
+        self._return_path = "search"
+        self._deadline = (time.perf_counter() + float(self.anytime_deadline)
+                          if self.anytime_deadline is not None else None)
+        self._smt_due = None
+        self._smt_tried = False
+        before = dict(self.jodap.stats)
+        self.jodap.deadline = self._deadline
+        try:
+            result = self._solve_impl(component, offline=False)
+        except DeadlineReached:
+            result = self._deadline_result(component)
+        self._normalise_move_order(component, result)
+        state = self.searches.get(component.component_id)
+        problems = self._validate_prefix_result(component, state, result)
+        route = self._classify_route(component, before, result, prev_cost)
+        if problems:
+            self.jodap.stats["validity_failures"] += 1
+            self.jodap._diag("validity_failure", component=component.component_id,
+                             problems=problems, route=route,
+                             cost=None if result is None else result.cost)
+            print(f"[odacc] validity check failed for component {component.component_id}: "
+                  f"{problems}; recomputing with full-prefix symbolic A*", flush=True)
+            self.searches.pop(component.component_id, None)
+            self._safe_mode = True
+            try:
+                self._route_hint = None
+                self._return_path = "search"
+                before = dict(self.jodap.stats)
+                try:
+                    result = self._solve_impl(component, offline=False)
+                except DeadlineReached:
+                    result = self._deadline_result(component)
+            finally:
+                self._safe_mode = False
+            self._normalise_move_order(component, result)
+            state = self.searches.get(component.component_id)
+            problems = self._validate_prefix_result(component, state, result)
+            route = "full_exact:validity_recompute"
+            if problems:
+                self.jodap.stats["validity_unrecovered"] += 1
+                pos = max((u.position for u in component.units), default=0)
+                result = AlignmentResult(component.component_id, pos, "prefix", None, False,
+                                         raw="validity check failed: " + "; ".join(problems))
+        self._deadline = None
+        self.jodap.deadline = None
+        if result is not None and result.feasible and result.cost is not None:
+            state = self.searches.get(component.component_id)
+            certified = self._return_path != "deadline"
+            lb = float(result.cost) if certified else (
+                float(state.proven_prefix_lower_bound) if state is not None else 0.0)
+            result.certified = certified
+            result.lower_bound = int(math.ceil(lb - 1e-9))
+            result.solution_status = "EXACT" if certified else "FEASIBLE"
+            result.global_lower_bound = float(result.lower_bound)
+            result.upper_bound = float(result.cost)
+            result.optimality_gap = float(result.cost) - float(result.lower_bound)
+            if not certified:
+                route = "uncertified:deadline"
+                self.jodap.stats["anytime_uncertified_results"] += 1
+            self._last_certified_flag[cid] = certified
+            self._last_proven_lb[cid] = lb
+            if state is not None:
+                self._anchor_certified_goal(component, state, result)
+                self._update_beam(component, state)
+            self._last_certified_cost[cid] = int(result.cost)
+            self._last_result[cid] = (list(result.moves), int(result.cost))
+            self._last_certified_events[cid] = frozenset(component.execution.event_ids)
+            result.certification_route = route.split(":", 1)[0]
+            result.certification_route_detail = route
+        return result
+
+    def _classify_route(self, component: ComponentState, before: Dict[str, Any],
+                        result: Optional[AlignmentResult], prev_cost: float) -> str:
+        """Name the mechanism that certified this update.
+
+        Level 1 (``direct``) and Level 2 (``local_repair``) are recorded by the
+        fast path that accepted the update.  Results returned before the search
+        loop (first event, merges) are ``direct`` if they add no cost to the
+        previously certified cost and ``local_repair`` otherwise.  Results of the
+        search loop are Level 3: ``checkpoint_exact`` if exact certification used
+        checkpoint-relative solving but no full-prefix eager query, else
+        ``full_exact``.
+        """
+        if self._route_hint and self._return_path == "pre_search":
+            return self._route_hint
+        if self._return_path == "smt":
+            return f"smt_exact:{self._smt_outcome}"
+        if self._return_path == "pre_search":
+            cost = None if result is None else result.cost
+            if cost is not None and float(cost) <= prev_cost + 1e-9:
+                return "direct:pre_search"
+            return "local_repair:pre_search"
+        after = self.jodap.stats
+
+        def inc(name):
+            return int(after.get(name, 0) or 0) > int(before.get(name, 0) or 0)
+
+        checkpoint_used = any(inc(k) for k in (
+            "persistent_checkpoint_context_proven", "persistent_checkpoint_context_upper_bounds",
+            "checkpoint_slice_proven", "checkpoint_bound_binding_proven", "provenance_slice_proven"))
+        if checkpoint_used and not inc("eager_fallback_queries"):
+            return "checkpoint_exact:search"
+        return "full_exact:search"
+
+    def _solve_impl(self, component: ComponentState, *, offline: bool = False) -> AlignmentResult:
         if not offline:
             self._register_active_component(component)
         if offline:
@@ -10192,9 +12490,33 @@ class SymbolicIncrementalBackend:
             # a fresh joint online search from the conservative safe checkpoint.
             state = self.searches.get(component.component_id)
             if state is None:
+                inherited = self._sound_lb_after_uncertified(component)
                 state = self._initialize(component)
+                if inherited is not None:
+                    state.sound_lb_override = inherited
             else:
+                state.sound_lb_override = None
                 self._sync_increment(component, state)
+                if state.new_objects_update and self.monotonicity_guard:
+                    state.sound_lb_override = 0.0
+                    self.jodap.stats["new_object_bound_clamps"] += 1
+            if state.sound_lb_override is not None:
+                # Lower bounds raised by fast paths from an uncertified
+                # boundary (they assume its cost is optimal) are discarded;
+                # only the inherited proven bound and the boundary-independent
+                # per-object projection bound remain.
+                projection = float(self._projection_lb_value(component)) \
+                    if self.use_object_projection_lb else 0.0
+                sound = max(float(state.sound_lb_override), projection)
+                if state.proven_prefix_lower_bound > sound + 1e-9:
+                    # Domain-independent joint bound (only when it can matter).
+                    joint = self._joint_lb_value(component, force=True)
+                    if joint is not None:
+                        sound = max(sound, float(joint))
+                if state.proven_prefix_lower_bound > sound + 1e-9:
+                    self.jodap.stats["anytime_lb_clamps"] += 1
+                    state.proven_prefix_lower_bound = sound
+            self._advance_beam(component, state)
             state.search_offline = False
             merge_proved = (state.incumbent_assignment is not None
                             and state.proven_prefix_lower_bound > 0
@@ -10205,7 +12527,8 @@ class SymbolicIncrementalBackend:
                 # On the first observed event, try to collapse mandatory silent
                 # object creation and the synchronous firing into one exact
                 # macro query before exposing intermediate creation states.
-                if root is not None and len(component.execution.event_ids) == 1:
+                if root is not None and len(component.execution.event_ids) == 1 \
+                        and not self._safe_mode:
                     eid0 = next(iter(component.execution.event_ids))
                     prepared_hit = self._try_zero_cost_prepared_sync_extension(
                         component, state, root, eid0
@@ -10255,6 +12578,7 @@ class SymbolicIncrementalBackend:
             }
             if incumbent_events == set(component.execution.event_ids):
                 self.jodap.stats["zero_cost_early_terminations"] += 1
+                self._return_path = "pre_search"
                 return self._make_result(
                     component, state, None, state.incumbent_assignment, "prefix",
                     moves_override=state.incumbent_moves
@@ -10274,6 +12598,7 @@ class SymbolicIncrementalBackend:
                 self.jodap.stats["positive_lower_bound_terminations"] += 1
                 if getattr(component, "merged_from", ()):
                     self.jodap.stats["merge_lower_bound_terminations"] += 1
+                self._return_path = "pre_search"
                 return self._make_result(
                     component, state, None, state.incumbent_assignment, "prefix",
                     moves_override=state.incumbent_moves
@@ -10287,13 +12612,66 @@ class SymbolicIncrementalBackend:
             if goal.node_id not in state.open_ids:
                 state.push(goal)
 
+        # Exact search phase: adopt any explicit local-repair witness for the
+        # current prefix as the incumbent (strict-improvement search then only
+        # needs to look below it), and make sure the depth bound cannot cut off
+        # an alignment that is cheaper than the best known upper bound.
+        if not offline:
+            self._adopt_pending_incumbent(component, state)
+            # Joint LP bound only here, when the cheap certification checks
+            # above did not settle the update (it would otherwise be computed,
+            # and scipy loaded, for updates that need no proof).
+            if self.use_joint_lb:
+                self._apply_joint_lb(component, state)
+                if state.incumbent_assignment is not None and not state.incumbent_offline \
+                        and self._incumbent_covers(component, state) \
+                        and float(state.upper_bound) <= float(state.proven_prefix_lower_bound) + 1e-9:
+                    self.jodap.stats["joint_lb_certifications"] += 1
+                    self._return_path = "pre_search"
+                    self._route_hint = "local_repair:joint_lb"
+                    return self._make_result(component, state, None, state.incumbent_assignment,
+                                             "prefix", moves_override=state.incumbent_moves)
+            self._ensure_depth_bound(component, state)
+
+        search_start = time.perf_counter()
+        self._smt_tried = False
+        self._smt_due = (search_start + float(self.smt_fallback_after)
+                         if (not offline and self.smt_fallback_after is not None) else None)
         while True:
+            # Anytime mode: return the best feasible alignment found so far,
+            # flagged as uncertified, once the per-observation deadline passed.
+            if (not offline) and self._deadline_passed() \
+                    and state.incumbent_assignment is not None \
+                    and not state.incumbent_offline and self._incumbent_covers(component, state):
+                self._return_path = "deadline"
+                return self._make_result(component, state, None, state.incumbent_assignment,
+                                         "prefix", moves_override=state.incumbent_moves)
+            # Optional Level-3 alternative: monolithic SMT strict-improvement
+            # check, after ``smt_fallback_after`` seconds of symbolic exact
+            # search in this update (0 = immediately on entering Level 3).
+            if (not offline) and (not self._smt_tried) and self.smt_fallback_after is not None \
+                    and time.perf_counter() - search_start >= self.smt_fallback_after:
+                self._smt_tried = True
+                smt_result = self._try_smt_certification(component, state)
+                if smt_result is not None:
+                    self.jodap.stats["frontier_expansions_avoided"] += int(
+                        bool(state.deferred_frontier_events or state.deferred_bound_grew))
+                    self._return_path = "smt"
+                    return smt_result
+            if state.pending_revalidation or state.revalidation_push_pending:
+                if not self._flush_revalidation(component, state):
+                    continue  # deadline: the next iteration returns the incumbent
+            if state.deferred_frontier_events or state.deferred_bound_grew:
+                self._flush_deferred_frontier(component, state)
+                if state.deferred_frontier_events or state.deferred_bound_grew:
+                    continue  # interrupted (stop requested): next iteration returns
             node = state.pop()
             if node is None:
                 # If OPEN was exhausted by incumbent pruning, the stored feasible
                 # prefix is optimal under the admissible lower bound.
                 if state.incumbent_assignment is not None \
-                        and state.incumbent_offline == offline:
+                        and state.incumbent_offline == offline \
+                        and self._incumbent_covers(component, state):
                     return self._make_result(
                         component, state, None, state.incumbent_assignment,
                         "offline" if offline else "prefix",
@@ -10308,6 +12686,17 @@ class SymbolicIncrementalBackend:
             # OPEN; if it cannot beat the incumbent, no remaining node can.
             if state.incumbent_assignment is not None \
                     and state.incumbent_offline == offline \
+                    and not self._incumbent_covers(component, state):
+                # An incumbent that does not explain every observed event of the
+                # current prefix is not a feasible alignment of this prefix and
+                # must neither prune nor be returned.
+                self.jodap.stats["stale_incumbents_discarded"] += 1
+                state.upper_bound = float("inf")
+                state.incumbent_moves = ()
+                state.incumbent_assignment = None
+                state.incumbent_offline = False
+            if state.incumbent_assignment is not None \
+                    and state.incumbent_offline == offline \
                     and node.f >= state.upper_bound - 1e-9:
                 self.jodap.stats["upper_bound_pruned"] += 1
                 return self._make_result(
@@ -10316,15 +12705,23 @@ class SymbolicIncrementalBackend:
                     moves_override=state.incumbent_moves
                 )
 
+            try:
+                if node.consumed == all_events:
+                    assignment = self.jodap.solve(component, state, node, require_final=offline)
+                else:
+                    assignment = None
+            except DeadlineReached:
+                state.push(node)  # not evaluated: keep it for later searches
+                raise
             if node.consumed == all_events:
-                assignment = self.jodap.solve(component, state, node, require_final=offline)
                 if assignment is not None:
                     state.assignments_by_node[node.node_id] = assignment
                     state.current_goal = node.node_id
                     state.current_assignment = assignment
-                    if assignment.total_cost < state.upper_bound + 1e-9:
+                    witness = self._witness_moves(state, node)
+                    if assignment.total_cost < state.upper_bound + 1e-9 and witness is not None:
                         state.upper_bound = assignment.total_cost
-                        state.incumbent_moves = tuple(self._path(state, node.node_id))
+                        state.incumbent_moves = witness
                         state.incumbent_assignment = assignment
                         state.incumbent_offline = offline
                     if not offline:
@@ -10338,7 +12735,14 @@ class SymbolicIncrementalBackend:
                 # may yield a cheaper offline completion.
 
             state.closed_ids.add(node.node_id)
-            self._expand(component, state, node)
+            try:
+                self._expand(component, state, node)
+            except DeadlineReached:
+                # Partially expanded: reopen so that a later search expands it
+                # completely (duplicate successors are ignored by signature).
+                state.closed_ids.discard(node.node_id)
+                state.push(node)
+                raise
 
             # _expand evaluates successors eagerly.  A complete successor may
             # therefore prove a zero-cost optimum before it is ever popped from

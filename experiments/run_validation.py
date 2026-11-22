@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
 import re
 import statistics
 import subprocess
@@ -17,15 +18,20 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+_HERE = Path(__file__).resolve().parent
+# Works both from the repository root and from experiments/: ROOT is the
+# directory containing batch_folder.py and examples/.
+ROOT = _HERE if (_HERE / "batch_folder.py").exists() else _HERE.parent
 BATCH = ROOT / "batch_folder.py"
 PYTHON = sys.executable
 
 # ---------------------------------------------------------------------------
 # EDIT THIS SECTION
 # ---------------------------------------------------------------------------
-COCOMOT_ROOT = Path("../cocomot-main")
-RESULT_ROOT = ROOT / "experiment_runs"
+# Path of the CoCoMoT checkout (relative paths are resolved from ROOT); the
+# environment variable ODACC_COCOMOT_ROOT overrides it.
+COCOMOT_ROOT = Path(os.environ.get("ODACC_COCOMOT_ROOT", "../cocomot-main"))
+RESULT_ROOT = _HERE / "experiment_runs"
 
 BACKEND_SETS = {
     "symbolic_symbolic": ("symbolic", "symbolic"),

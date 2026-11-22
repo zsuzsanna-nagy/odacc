@@ -66,36 +66,36 @@ be executed or resumed independently.
 
 ## Experimental protocol
 
-The paper experiments use the following configuration:
+The paper compares three configurations, all run on the same machine, one
+case per process, with a limit of 120 s per update:
 
-- measured repetitions: **1**
-- warm-up repetitions: **0**
-- online run timeout: **600 s**
-- offline run timeout: **600 s**
-- per-observation timeout: **60 s**
-- native solver retries: **1**
+| Method | Command | Behaviour at the per-update limit |
+|---|---|---|
+| SMT reference | `python run_online_smt.py --observation-timeout 120 --online-timeout 0` | the component is given up; its later updates (and those of components merging with it) are skipped, other components continue |
+| Exact (proposed, exact mode) | `python run_online_symbolic.py --variant pure-jointlb-lp --observation-timeout 120 --online-timeout 0` | the case stops at the first update over the limit |
+| Anytime (proposed, anytime mode) | `python run_online_symbolic.py --variant anytime-smt-jointlb-lp --deadline 100 --observation-timeout 120 --online-timeout 0 --on-observation-timeout continue` | each update ends at its 100 s deadline; an update that still exceeds 120 s is recorded, and the case continues |
 
-Each benchmark configuration was executed once for the completion analysis.
-Cases with execution times close to the specified timeout were repeated when
-needed to verify the completion classification.
-
-The runtime values reported in the paper correspond to these measured runs;
-the experiment should therefore be executed on an otherwise lightly loaded
-machine when reproducing timing results.
+Each configuration was executed once. Runtimes depend on hardware and solver
+versions; run the experiments on an otherwise lightly loaded machine when
+reproducing timing results.
 
 ## Configuration
 
-Before running the experiments, set the path to the CoCoMoT installation in
-each runner:
+The runners use `../cocomot-main` as the CoCoMoT installation; set the
+environment variable `ODACC_COCOMOT_ROOT` to use another location.
 
-```python
-COCOMOT_ROOT = Path("../cocomot-main")
-```
+## Variants of the symbolic method
 
-## Running the experiments
+`run_online_symbolic.py --variant NAME` selects the configuration, e.g.:
 
-```bash
-python run_validation.py
-python run_online_symbolic.py
-python run_online_smt.py
-```
+- `pure-jointlb-lp`: exact mode with the joint lower bound, LP-guided candidates and the LP
+  search heuristic (used in the paper);
+- `anytime-smt-jointlb-lp`: anytime mode with the same options, a deadline and the
+  SMT strict-improvement check after 10 s (used in the paper);
+- `pure`: Levels 1-3 without the LP options;
+- `smt-level3`, `anytime-smt`, `jointlb`, ...: further variants for ablation
+  (see the `VARIANTS` table in the runner).
+
+Time limits can be set with `--observation-timeout`, `--online-timeout`,
+`--deadline` and `--smt-after`; `experiments/rerun_failed.py` reruns only the
+cases of a session that did not complete.

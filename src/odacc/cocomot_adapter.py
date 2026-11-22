@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import itertools
+import math
 import os
 import sys
 import time
@@ -50,6 +51,22 @@ def load_cocomot(cocomot_root: str) -> CocomotModules:
     return CocomotModules(OPI, read_pnml_input, Encoding, Trace, Event, Z3Solver)
 
 
+# Ablation switches (set from the CLI).
+#   EXACT_SYNC_MODE  "anchored": exact-synchronization arcs consume exactly the
+#                    tokens matching the scalar part of the binding (ODACC 1.1+);
+#                    "upstream": CoCoMoT's original token-movement encoding, and
+#                    no exactness check in the symbolic lazy solver (ODACC 1.0).
+EXACT_SYNC_MODE = "anchored"
+#   NONVACUOUS_FIRING  True: a transition with input arcs must consume at least
+#                    one token (no firing through empty LIST bindings only,
+#                    e.g. ``failed delivery(p, I=[])`` before ``send package``).
+#                    An explicit semantic choice (ODACC 1.6); unmodified
+#                    CoCoMoT does not impose it.  Applies to the anchored
+#                    encoding (SMT reference and eager JODAP); the lazy
+#                    evaluator never accepts an input arc without tokens.
+NONVACUOUS_FIRING = True
+
+
 def make_observation_encoding_classes(base_encoding):
     class SoftObservationEncoding(base_encoding):
         """CoCoMoT encoding with selected-transition-local data semantics.
@@ -89,6 +106,135 @@ def make_observation_encoding_classes(base_encoding):
             if raw is None:
                 raw = self._solver.false()
             return self._solver.implies(self._selected_at(t, i), raw)
+
+        def _exact_sync_anchor_match(self, p, t, tok, j):
+            """Formula: the scalar components of ``tok`` equal the binding of ``t``.
+
+            For an exact-synchronization arc such as ``(o:ORDER, P:PRODUCT LIST)``
+            the DOPID semantics require ``P`` to contain *all* tokens of the place
+            that agree with the scalar (non-LIST) part of the binding, i.e. all
+            ``(o, p)`` tokens of the bound order ``o``.  Tokens of other orders
+            are unaffected.  For a pure LIST inscription the anchor is empty and
+            the formula is ``true`` (all tokens of the place must be consumed).
+            """
+            s = self._solver
+            ovars = self._object_vars
+            obj_params = self._net.object_inscriptions_of_transition(t, self._objects)
+            params = [x for x in obj_params if x["place"] == p["id"] and x["incoming"]]
+            inscription = next(a["inscription"] for a in self._net._arcs
+                               if a["source"] == p["id"] and a["target"] == t["id"])
+            eqs = []
+            for obj, (pname, _ptype) in zip(tok, [ins for ins in inscription
+                                                  if ins[1] not in self._net._data_types]):
+                scalar = [x for x in params if x["name"] == pname and x.get("needed", False)]
+                if not scalar:
+                    continue  # LIST component: no anchoring condition
+                objid = self._id_by_object_name[obj]
+                eqs.append(s.lor([s.eq(ovars[j][x["index"]], s.num(objid)) for x in scalar]))
+            return s.land(eqs) if eqs else s.true()
+
+        def _nonvacuous_condition(self, t, j):
+            """Formula: firing ``t`` at step ``j`` consumes at least one token.
+
+            An input arc whose object components are all scalar always consumes
+            the token of the binding, so a transition with such an arc is never
+            vacuous (returns None: no constraint).  Otherwise every input arc
+            contains LIST variables, and an arc consumes a token iff each of its
+            LIST variables binds at least one object.  The condition is stated
+            over the LIST slot variables (slot != -1) instead of over all
+            tokens of all input places, which keeps the encoding small.
+            """
+            s = self._solver
+            ovars = self._object_vars
+            pre = self._net.pre(t)
+            if not pre:
+                return None
+            params = self._net.object_inscriptions_of_transition(t, self._objects)
+            arc_options = []
+            for p in pre:
+                inscription = next((a["inscription"] for a in self._net._arcs
+                                    if a["source"] == p["id"] and a["target"] == t["id"]), [])
+                obj = [(n, ty) for n, ty in inscription if ty not in self._net._data_types]
+                if not obj:
+                    continue
+                list_names = [n for n, ty in obj if ty.endswith(" LIST")]
+                if not list_names:
+                    return None  # scalar-only input arc: never vacuous
+                per_var = []
+                for name in list_names:
+                    slots = [x["index"] for x in params
+                             if x["place"] == p["id"] and x["incoming"] and not x["needed"]
+                             and x["name"] == name]
+                    if not slots:
+                        per_var = None
+                        break
+                    per_var.append(s.lor([s.neg(s.eq(ovars[j][k], s.num(-1))) for k in slots]))
+                if per_var is None:
+                    continue
+                arc_options.append(s.land(per_var))
+            if not arc_options:
+                return None
+            return s.lor(arc_options)
+
+        def moving_tokens(self):
+            if EXACT_SYNC_MODE == "upstream":
+                return base_encoding.moving_tokens(self)
+            return self._anchored_moving_tokens()
+
+        def _anchored_moving_tokens(self):
+            """CoCoMoT's token-movement constraints with anchored exact sync.
+
+            Identical to ``Encoding.moving_tokens`` except for exact-synchronization
+            arcs.  Upstream CoCoMoT requires every marked token of the place to be
+            consumed, which is only correct when the place contains tokens of a
+            single anchor object.  With two orders in one trace, firing
+            ``pay bank transfer`` for one order would also have to consume the
+            ``(order, product)`` tokens of the other order and is therefore
+            impossible.  Here the reverse implication ``marked -> consumed`` is
+            restricted to tokens matching the scalar part of the binding.
+            """
+            s = self._solver
+            mvars = self._marking_vars
+
+            def trans_j_consumed(t, j):
+                cnstr = []
+                post_ids = [q["id"] for q in self._net.post(t)]
+                for p in self._net.pre(t):
+                    exact = self._net.is_exact_sync_arc(p["id"], t["id"])
+                    for tok in self._tokens_by_color[p["color"]]:
+                        pid = p["id"]
+                        is_self_loop = pid in post_ids
+                        marked = (s.land([mvars[j][pid][tok], s.neg(mvars[j + 1][pid][tok])])
+                                  if not is_self_loop else mvars[j][pid][tok])
+                        is_consumed = self.is_consumed_token(p, t, tok, j)
+                        cnstr.append(s.implies(is_consumed, marked))
+                        if exact:
+                            anchor = self._exact_sync_anchor_match(p, t, tok, j)
+                            cnstr.append(s.implies(s.land([mvars[j][pid][tok], anchor]), is_consumed))
+                if NONVACUOUS_FIRING:
+                    nonvacuous = self._nonvacuous_condition(t, j)
+                    if nonvacuous is not None:
+                        cnstr.append(nonvacuous)
+                return s.land(cnstr)
+
+            def trans_j_produced(t, j):
+                cnstr = []
+                for p in self._net.post(t):
+                    for tok in self._tokens_by_color[p["color"]]:
+                        marked = mvars[j + 1][p["id"]][tok]
+                        cnstr.append(s.implies(self.is_produced_token(p, t, tok, j), marked))
+                return s.land(cnstr)
+
+            def jth_trans_is(j, tid):
+                return s.land([s.eq(self._transition_vars[j], s.num(tid)),
+                               s.lt(s.num(j), self._run_length_var)])
+
+            return s.land([
+                s.implies(jth_trans_is(j, t["id"]),
+                          s.land([trans_j_consumed(t, j), trans_j_produced(t, j)]))
+                for j in range(0, self._step_bound)
+                for t in self._net._transitions
+            ])
 
         def odacc_boundary_initial_state(self, marking_signature, token_store_values=()):
             """Fix instant 0 to a certified ODACC checkpoint witness.
@@ -156,6 +302,18 @@ class CocomotBackend:
         # object-carried attributes as well.
         install_soft_object_property_semantics()
         self.OfflineEncoding, self.PrefixEncoding = make_observation_encoding_classes(self.mods.Encoding)
+        # "certified": re-solve with a sufficient model-run bound (ODACC 1.1+);
+        # "cocomot": CoCoMoT's default bound only (ODACC 1.0 behaviour).
+        self.step_bound_mode = "certified"
+        # Incremental strict-improvement check (--smt-incremental): persistent
+        # base encoding per component, per-update edit-distance layer.
+        # Per-update time limit (seconds) for online SMT solves; None = off.
+        self.update_timeout: Optional[float] = None
+        self._update_deadline: Optional[float] = None
+        self.incremental_smt = False
+        self.inc_headroom = 1.5
+        self._inc_cache: Dict[Any, Dict[str, Any]] = {}
+        self.inc_stats = {"base_builds": 0, "base_reuses": 0, "id_mismatch_rebuilds": 0}
 
     def _new_net(self):
         return self.mods.OPI(self.mods.read_pnml_input(self.model_path))
@@ -602,8 +760,87 @@ class CocomotBackend:
         )
 
     def solve(self, component: ComponentState, *, offline: bool = False) -> AlignmentResult:
+        """Exact SMT alignment with a *certified* model-run length bound.
+
+        CoCoMoT bounds the model run by ``max(shortest_accepted, |trace|) +
+        #objects created by silent transitions``.  That leaves no room for
+        visible model moves, so a cheaper alignment needing an extra model move
+        (e.g. a missing ``pick item``) can be cut off and a more expensive
+        log-move explanation returned.  If every visible transition binds at
+        least one object (model-move cost >= 1) and every silent transition is
+        an object creation, any alignment of cost < c uses at most ``|trace|``
+        synchronous moves, ``c-1`` visible model moves and ``#silently created
+        objects`` silent moves.  After solving with bound B and obtaining cost
+        c, the result is therefore optimal if ``B >= |trace| + objs_silent +
+        c - 1``; otherwise we re-solve once with that bound, which certifies
+        the (possibly cheaper) new optimum.
+        """
+        self._update_deadline = (time.perf_counter() + float(self.update_timeout)
+                                 if (self.update_timeout and not offline) else None)
+        try:
+            return self._solve_certified(component, offline=offline)
+        finally:
+            self._update_deadline = None
+
+    def _solve_certified(self, component: ComponentState, *, offline: bool = False) -> AlignmentResult:
+        result, info = self._solve_with_bound(component, offline=offline)
+        if self.step_bound_mode == "cocomot":
+            result.step_bound = info["step_bound"]
+            result.step_bound_certified = False
+            result.step_bound_attempts = 1
+            return result
+        ok, reasons = model_depth_bound_condition(info["net"])
+        if not ok:
+            if not getattr(self, "_bound_warning_printed", False):
+                print("[odacc] WARNING: model-run bound cannot be certified for this model "
+                      f"({'; '.join(reasons)}); using CoCoMoT's default bound.", flush=True)
+                self._bound_warning_printed = True
+            result.step_bound = info["step_bound"]
+            result.step_bound_certified = False
+            return result
+        attempts = 0
+        extra = max(2, info["trace_len"])
+        while True:
+            attempts += 1
+            bound = info["step_bound"]
+            if not result.feasible or result.cost is None:
+                # Only possible offline (final marking unreachable within B).
+                if attempts > 4:
+                    break
+                result, info = self._solve_with_bound(component, offline=offline,
+                                                      step_bound=bound + extra)
+                extra *= 2
+                continue
+            needed = info["trace_len"] + info["objs_silent"] + max(0, int(result.cost) - 1)
+            if bound >= needed or attempts > 4:
+                break
+            result, info = self._solve_with_bound(component, offline=offline, step_bound=needed)
+        result.step_bound = info["step_bound"]
+        result.step_bound_certified = bool(
+            result.feasible and result.cost is not None and info["step_bound"] >=
+            info["trace_len"] + info["objs_silent"] + max(0, int(result.cost) - 1))
+        result.step_bound_attempts = attempts
+        if result.feasible and result.cost is not None:
+            # Exact for the encoded problem; globally exact only with a
+            # certified run bound.
+            result.solution_status = "EXACT" if result.step_bound_certified else "EXACT_WITHIN_BOUND"
+            result.global_lower_bound = float(result.cost) if result.step_bound_certified else None
+            result.upper_bound = float(result.cost)
+            result.optimality_gap = 0.0 if result.step_bound_certified else None
+        return result
+
+    def _build_encoding(self, component: ComponentState, *, offline: bool = False,
+                        step_bound: Optional[int] = None, incremental: bool = False):
+        """Build the complete SMT alignment problem (shared by all queries).
+
+        ``incremental=True`` builds on a plain ``z3.Solver`` (decision queries)
+        instead of ``z3.Optimize``.
+        """
         net, trace, ordered_units = self._trace_for_component(component)
-        solver = self.mods.Z3Solver(incremental=False)
+        if step_bound is not None:
+            # OPI.step_bound() returns a cached positive value unchanged.
+            net._step_bound = int(step_bound)
+        solver = self.mods.Z3Solver(incremental=incremental)
         EncodingClass = self.OfflineEncoding if offline else self.PrefixEncoding
         encoding = EncodingClass(solver, net, trace)
         t0 = time.perf_counter()
@@ -637,19 +874,292 @@ class CocomotBackend:
         for term in object_attr_terms:
             objective = solver.plus(objective, term)
         encode_s = time.perf_counter() - t0
+        return (solver, encoding, objective, object_attr_terms, object_attr_meta,
+                net, trace, ordered_units, encode_s)
+
+    def _solve_with_bound(self, component: ComponentState, *, offline: bool = False,
+                          step_bound: Optional[int] = None):
+        deadline = getattr(self, "_update_deadline", None)
+        if deadline is not None and time.perf_counter() >= deadline:
+            raise SMTUpdateTimeout()
+        (solver, encoding, objective, object_attr_terms, object_attr_meta,
+         net, trace, ordered_units, encode_s) = self._build_encoding(
+            component, offline=offline, step_bound=step_bound)
         optbound = (encoding.get_step_bound() * max(1, encoding.get_max_objs_per_trans())
                     + len(trace) + len(object_attr_terms) + 5)
+        if deadline is not None:
+            remaining = deadline - time.perf_counter()
+            if remaining <= 0:
+                raise SMTUpdateTimeout()
+            solver.ctx.set("timeout", max(1, int(remaining * 1000)))
         model = solver.minimize(objective, max=optbound)
+        if model is None and deadline is not None and not offline:
+            # A prefix always has a feasible alignment (all log moves); no
+            # model under a time limit means the limit was reached.
+            raise SMTUpdateTimeout()
         solve_s = solver.t_solve
         position = max((u.position for u in component.units), default=0)
+        try:
+            objs_silent = len(net.objects_created_by_silent_transitions())
+        except Exception:
+            objs_silent = 0
+        info = {"net": net, "step_bound": int(encoding.get_step_bound()),
+                "trace_len": len(trace), "objs_silent": objs_silent}
         if model is None:
             return AlignmentResult(component.component_id, position, "offline" if offline else "prefix",
-                                   None, False, encode_seconds=encode_s, solve_seconds=solve_s)
+                                   None, False, encode_seconds=encode_s, solve_seconds=solve_s), info
         result = self._decode(encoding, model, component, position,
                               "offline" if offline else "prefix", ordered_units, encode_s, solve_s,
                               objective_expr=objective, object_attr_meta=object_attr_meta)
         model.destroy()
-        return result
+        return result, info
+
+    def strict_improvement(self, component: ComponentState, upper_bound: float,
+                           timeout_s: Optional[float] = None):
+        """Exact check whether a prefix alignment of cost < ``upper_bound`` exists.
+
+        Used as a Level-3 certification fallback by the symbolic backend.  The
+        model-run bound ``|trace| + |objects| + (U-1)`` is sufficient for any
+        alignment of cost <= U-1 under ``model_depth_bound_condition``.
+        Returns ``("unsat", None)`` if no cheaper alignment exists (the
+        incumbent is optimal), ``("sat", result)`` with the optimal cheaper
+        alignment, or ``("unknown", None)`` on timeout or inapplicability.
+        """
+        # The time limit covers the whole call, including building the
+        # encoding (which can take several seconds on large components).
+        call_deadline = None if timeout_s is None else time.perf_counter() + float(timeout_s)
+        cap = int(math.ceil(float(upper_bound) - 1e-9)) - 1
+        if cap < 0:
+            return "unsat", None
+        net = self._new_net()
+        ok, _reasons = model_depth_bound_condition(net)
+        if not ok:
+            return "unknown", None
+        n_events = sum(1 for u in component.units if u.event is not None)
+        bound = n_events + len(component.objects) + cap
+        if self.incremental_smt:
+            return self._incremental_strict_improvement(component, cap, bound, call_deadline)
+        (solver, encoding, objective, _terms, object_attr_meta,
+         net, trace, ordered_units, encode_s) = self._build_encoding(
+            component, offline=False, step_bound=max(1, bound), incremental=True)
+        # size measure for build-time prediction: step bound x objects
+        self.last_strict_build = (float(max(1, bound) * max(1, len(component.objects))),
+                                  float(encode_s))
+        ctx = solver.ctx
+        z3mod = sys.modules[type(solver).__module__]
+        deadline = call_deadline
+        if deadline is not None and deadline - time.perf_counter() <= 0.5:
+            return "unknown", None
+
+        def check():
+            if deadline is not None:
+                remaining = deadline - time.perf_counter()
+                if remaining <= 0:
+                    return "unknown"
+                ctx.set("timeout", max(1, int(remaining * 1000)))
+            return str(ctx.check())
+
+        # Decision query first: in the common case (the incumbent is optimal)
+        # a single UNSAT answer settles the update.  If a cheaper alignment
+        # exists, descend one cost unit at a time on the same incremental
+        # solver; the last SAT model is the optimum (the run bound is sufficient
+        # for every cost <= cap).
+        t0 = time.perf_counter()
+        ctx.add(solver.le(objective, solver.num(cap)))
+        status = check()
+        if status == "unsat":
+            return "unsat", None
+        if status != "sat":
+            return "unknown", None
+        first = z3mod.Z3Model(ctx)
+        first_cost = first.eval_int(objective)
+        position = max((u.position for u in component.units), default=0)
+        best = (encoding, first, objective, object_attr_meta, ordered_units, encode_s)
+        if first_cost > 0:
+            # One optimization below the cost just found, on an encoding whose
+            # run bound only needs to cover costs <= first_cost - 1.
+            cap2 = first_cost - 1
+            (solver2, encoding2, objective2, _t2, meta2,
+             _net2, _trace2, ordered2, encode2) = self._build_encoding(
+                component, offline=False, step_bound=max(1, n_events + len(component.objects) + cap2))
+            ctx2 = solver2.ctx
+            improved_only = False
+            if deadline is not None:
+                remaining = deadline - time.perf_counter()
+                if remaining <= 0:
+                    improved_only = True
+                else:
+                    ctx2.set("timeout", max(1, int(remaining * 1000)))
+            if not improved_only:
+                solver2.require([solver2.le(objective2, solver2.num(cap2))])
+                ctx2.minimize(objective2)
+                status2 = str(ctx2.check())
+                if status2 == "sat":
+                    best = (encoding2, z3mod.Z3Model(ctx2), objective2, meta2, ordered2, encode2)
+                elif status2 != "unsat":
+                    improved_only = True
+            if improved_only:
+                # Timed out after finding a cheaper alignment: return it as an
+                # improvement that is *not* proven optimal.
+                enc, model, obj, meta, ordered, enc_s = best
+                result = self._decode(enc, model, component, position, "prefix", ordered,
+                                      enc_s, time.perf_counter() - t0, objective_expr=obj,
+                                      object_attr_meta=meta)
+                return "improved", result
+        solve_s = time.perf_counter() - t0
+        enc, model, obj, meta, ordered, enc_s = best
+        result = self._decode(enc, model, component, position, "prefix", ordered,
+                              enc_s, solve_s, objective_expr=obj, object_attr_meta=meta)
+        return "sat", result
+
+    # ------------------------------------------------------------------
+    # Incremental strict-improvement check
+    # ------------------------------------------------------------------
+    def _inc_key(self, component: ComponentState):
+        attrs = component.observation_formula.current_object_attributes()
+        return (frozenset(map(str, component.objects)),
+                tuple(sorted((str(o), str(a), repr(v)) for o, vals in attrs.items()
+                             for a, v in (vals or {}).items())))
+
+    def _inc_base(self, component: ComponentState, needed_bound: int):
+        """Persistent solver holding the model part of the encoding.
+
+        The model part (initial state, transition range, object types,
+        freshness, token movement incl. anchored exact synchronization and
+        non-vacuous firing, data constraints, output-guard overlay, prefix
+        condition) depends only on the objects, their attributes and the step
+        bound, not on the observed events.  It is built once with headroom in
+        the step bound and reused while the objects and attribute values stay
+        the same; the event-dependent edit distance is added per query in a
+        push/pop layer.
+        """
+        key = self._inc_key(component)
+        cid = component.component_id
+        entry = self._inc_cache.get(cid)
+        if entry is not None and entry["key"] == key and entry["bound"] >= needed_bound:
+            self.inc_stats["base_reuses"] += 1
+            return entry
+        bound = max(needed_bound, int(math.ceil(needed_bound * self.inc_headroom)))
+        net, trace, _units = self._trace_for_component(component)
+        net._step_bound = int(bound)
+        solver = self.mods.Z3Solver(incremental=True)
+        encoding = self.PrefixEncoding(solver, net, trace)
+        t0 = time.perf_counter()
+        encoding.create_variables()
+        solver.require([
+            encoding.initial_state(self.fixed_objects),
+            encoding.transition_range(),
+            encoding.object_types(),
+            encoding.freshness(),
+            encoding.moving_tokens(),
+            encoding.remaining_tokens(),
+            encoding.data_constraints(),
+            self._semantic_output_guard_constraints(encoding, net, component),
+            encoding.prefix_state(),
+        ])
+        solver.require([encoding.cache_constraints()])
+        entry = {"key": key, "bound": int(bound), "solver": solver, "encoding": encoding,
+                 "ids": dict(getattr(encoding, "_id_by_object_name", {}) or {}),
+                 "encode_seconds": time.perf_counter() - t0}
+        self._inc_cache[cid] = entry
+        while len(self._inc_cache) > 4:  # small LRU
+            self._inc_cache.pop(next(iter(self._inc_cache)))
+        self.inc_stats["base_builds"] += 1
+        return entry
+
+    def _incremental_strict_improvement(self, component: ComponentState, cap: int,
+                                        needed_bound: int, deadline: Optional[float]):
+        entry = self._inc_base(component, max(1, needed_bound))
+        solver = entry["solver"]
+        ctx = solver.ctx
+        net, trace, ordered_units = self._trace_for_component(component)
+        net._step_bound = int(entry["bound"])
+        t0 = time.perf_counter()
+        layer = self.PrefixEncoding(solver, net, trace)
+        layer.create_variables()  # same variable names -> same Z3 constants
+        if dict(getattr(layer, "_id_by_object_name", {}) or {}) != entry["ids"]:
+            # Object identifiers must coincide with the base layer; rebuild.
+            self.inc_stats["id_mismatch_rebuilds"] += 1
+            self._inc_cache.pop(component.component_id, None)
+            entry = self._inc_base(component, max(1, needed_bound))
+            solver, ctx = entry["solver"], entry["solver"].ctx
+            layer = self.PrefixEncoding(solver, net, trace)
+            layer.create_variables()
+        z3mod = sys.modules[type(solver).__module__]
+
+        def check():
+            if deadline is not None:
+                remaining = deadline - time.perf_counter()
+                if remaining <= 0:
+                    return "unknown"
+                ctx.set("timeout", max(1, int(remaining * 1000)))
+            return str(ctx.check())
+
+        ctx.push()
+        try:
+            solver.require([layer.edit_distance()])
+            solver.require([layer.cache_constraints()])
+            object_attr_terms, object_attr_meta = observed_object_attribute_terms(component, solver)
+            objective = layer.optimization_expression()
+            for term in object_attr_terms:
+                objective = solver.plus(objective, term)
+            encode_s = time.perf_counter() - t0
+            ctx.add(solver.le(objective, solver.num(cap)))
+            status = check()
+            if status == "unsat":
+                return "unsat", None
+            if status != "sat":
+                return "unknown", None
+            best_model = None
+            while status == "sat":
+                best_model = z3mod.Z3Model(ctx)
+                cost = best_model.eval_int(objective)
+                if cost <= 0:
+                    break
+                ctx.add(solver.le(objective, solver.num(cost - 1)))
+                status = check()
+                if status not in ("sat", "unsat"):
+                    return "unknown", None
+            solve_s = time.perf_counter() - t0 - encode_s
+            position = max((u.position for u in component.units), default=0)
+            result = self._decode(layer, best_model, component, position, "prefix", ordered_units,
+                                  encode_s, solve_s, objective_expr=objective,
+                                  object_attr_meta=object_attr_meta)
+            return "sat", result
+        finally:
+            ctx.pop()
+
+
+
+class SMTUpdateTimeout(Exception):
+    """The SMT solve of one online update exceeded ``update_timeout``."""
+
+
+def model_depth_bound_condition(net):
+    """Check the model conditions under which the cost-derived run bound is sound.
+
+    (a) every silent transition creates an object (has a ``nu`` output
+        inscription), so silent steps are bounded by the number of objects; and
+    (b) every visible transition has at least one scalar (non-LIST) object
+        parameter, so every visible model move costs at least 1.
+    Returns ``(ok, reasons)``.
+    """
+    reasons = []
+    data_types = set(getattr(net, "_data_types", ()) or ())
+    for t in getattr(net, "_transitions", []):
+        tid = t.get("id")
+        inscs = []
+        for a in getattr(net, "_arcs", []):
+            if a.get("source") == tid or a.get("target") == tid:
+                inscs.extend(a.get("inscription", []) or [])
+        obj = [(str(n), str(ty)) for n, ty in inscs if ty not in data_types]
+        label = t.get("label", tid)
+        if t.get("invisible", False):
+            if not any("nu" in n for n, _ty in obj):
+                reasons.append(f"silent transition {label!r} is not an object creation")
+        elif not any("LIST" not in ty for _n, ty in obj):
+            reasons.append(f"visible transition {label!r} may bind no object (zero-cost model move)")
+    return (not reasons), reasons
 
 
 def semantic_output_guard_constraints(encoding, net, component: ComponentState):

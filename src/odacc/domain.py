@@ -177,3 +177,10 @@ class AlignmentResult:
     encode_seconds: float = 0.0
     solve_seconds: float = 0.0
     joint_assignment: Dict[str, Any] = field(default_factory=dict)
+    # Certification reporting (online results).  "EXACT": certified optimal;
+    # "FEASIBLE": anytime result, cost is an upper bound and
+    # ``global_lower_bound`` a proven lower bound.
+    solution_status: Optional[str] = None
+    global_lower_bound: Optional[float] = None
+    upper_bound: Optional[float] = None
+    optimality_gap: Optional[float] = None

@@ -1,0 +1,431 @@
+"""Joint token-flow lower bound for object-centric prefix alignments (LP).
+
+A linear relaxation of the prefix-alignment problem over *all* objects of a
+component at once (an object-centric analogue of the marking-equation bound):
+
+* every observed event is explained either by a log move or by a synchronous
+  move of a transition with its label; a synchronous move binds exactly the
+  observed objects, so its consumed/produced token tuples are known;
+* model moves are counted per transition and per binding of its scalar object
+  variables; a LIST variable is represented by one membership variable per
+  candidate object (``0 <= z <= y``);
+* token conservation, ignoring order: every token tuple (place, objects) is
+  produced at least as often as it is consumed (initial marking is empty;
+  objects come from creation transitions);
+* every object is created at most once;
+* cost: log moves cost their number of objects, visible model moves the number
+  of bound objects, silent moves 0; one unit of data cost is charged if some
+  synchronous move must violate its guard (a single object-attribute repair
+  can fix several guards, so only one unit is counted).
+
+Every alignment of the prefix (integral, ordered) is a feasible point of the
+program, so ``ceil(LP optimum)`` is an admissible lower bound.  Guards, data,
+exact synchronization, non-vacuous firing and move order are relaxed.
+
+Applicability (otherwise ``ok`` is False and the bound is 0): every object type
+is created by some transition, no transition has two object variables of the
+same type, and no arc has more than one LIST component.
+"""
+from __future__ import annotations
+
+import itertools
+import math
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+
+def _base(ty: str) -> Tuple[str, bool]:
+    ty = str(ty)
+    return (ty[:-5], True) if ty.endswith(" LIST") else (ty, False)
+
+
+class JointFlowBound:
+    MAX_VARIABLES = 60000
+
+    def __init__(self, net):
+        self.ok = True
+        self.reasons: List[str] = []
+        data_types = set(getattr(net, "_data_types", ()) or ())
+        self.transitions = {t["id"]: t for t in getattr(net, "_transitions", [])}
+        places = {p["id"] for p in getattr(net, "_places", [])}
+        # per transition: list of (place, out?, [(var, type, is_list)]) and var table
+        self.arcs: Dict[Any, List[Tuple[Any, bool, List[Tuple[str, str, bool]]]]] = {}
+        self.vars: Dict[Any, Dict[str, Tuple[str, bool, bool]]] = {}
+        creatable = set()
+        types_seen = set()
+        for a in getattr(net, "_arcs", []):
+            src, tgt = a.get("source"), a.get("target")
+            if src in self.transitions and tgt in places:
+                tid, pid, out = src, tgt, True
+            elif tgt in self.transitions and src in places:
+                tid, pid, out = tgt, src, False
+            else:
+                continue
+            comps = []
+            for name, ty in (a.get("inscription") or ()):
+                if ty in data_types:
+                    continue
+                base, is_list = _base(ty)
+                comps.append((str(name), base, is_list))
+                types_seen.add(base)
+                is_nu = str(name).startswith("nu") and out
+                table = self.vars.setdefault(tid, {})
+                prev = table.get(str(name))
+                if prev is not None and (prev[0] != base or prev[1] != is_list):
+                    self._disable(f"variable {name} of {tid} has inconsistent types")
+                table[str(name)] = (base, is_list, (prev[2] if prev else False) or is_nu)
+                if is_nu:
+                    creatable.add(base)
+            if sum(1 for c in comps if c[2]) > 1:
+                self._disable("arc with more than one LIST component")
+            self.arcs.setdefault(tid, []).append((pid, out, comps))
+        for tid, table in self.vars.items():
+            types = [v[0] for v in table.values()]
+            if len(types) != len(set(types)):
+                self._disable(f"transition {self.transitions[tid].get('label')!r} has two "
+                              "object variables of the same type")
+        for ty in types_seen:
+            if ty not in creatable:
+                self._disable(f"object type {ty} is never created")
+
+    def _disable(self, reason: str) -> None:
+        self.ok = False
+        self.reasons.append(reason)
+
+    # ------------------------------------------------------------------
+    def lower_bound(self, component, event_info: Optional[Dict[str, Tuple[bool, bool]]] = None,
+                    time_limit: float = 10.0, consumed=None, initial_tokens=None,
+                    created=None, keep_solution: bool = False,
+                    fixed_events=None, min_model_counts=None) -> Optional[int]:
+        """ceil(LP optimum) for the component's current prefix (None if not computed).
+
+        With ``consumed`` (event ids already explained), ``initial_tokens``
+        (``(place, object tuple)`` pairs of a marking) and ``created`` (objects
+        already created), the program bounds the cost of explaining the
+        *remaining* events from that state (used as a search heuristic).
+        ``keep_solution`` stores the variable meanings and values in
+        ``last_solution`` (used to build candidate alignments).
+        ``fixed_events`` ({event: "log" or transition id}) and
+        ``min_model_counts`` ({transition: k}) restrict the program to
+        alignments extending a given path *structure* with any bindings; the
+        result bounds every completion of that path (search heuristic).
+        """
+        if not self.ok:
+            return None
+        try:
+            from scipy.optimize import linprog
+            from scipy.sparse import coo_matrix
+        except Exception:
+            return None
+        event_info = event_info or {}
+        types = component.observation_formula.object_types
+        domain: Dict[str, List[str]] = {}
+        for o in component.objects:
+            ty = types.get(o)
+            if ty is not None:
+                domain.setdefault(str(ty), []).append(str(o))
+        for v in domain.values():
+            v.sort()
+        events = [u.event for u in component.units
+                  if u.event is not None and u.event.event_id in component.execution.event_ids
+                  and (consumed is None or u.event.event_id not in consumed)]
+        meta: List[Tuple] = []
+
+        cost: List[float] = []
+        token_rows: Dict[Tuple[Any, Tuple[str, ...]], Dict[int, float]] = {}
+        ub_rows: List[Dict[int, float]] = []      # sum(coef * x) <= 0 (besides token rows)
+        ub_rhs: List[float] = []
+        eq_rows: List[Dict[int, float]] = []
+        eq_rhs: List[float] = []
+        creations: Dict[str, Dict[int, float]] = {}
+        guard_terms: List[Tuple[int, float]] = []
+
+        def new_var(c: float, info: Tuple = ()) -> int:
+            cost.append(float(c))
+            meta.append(info)
+            return len(cost) - 1
+
+        def add_token(pid, tup, var, coef):
+            row = token_rows.setdefault((pid, tuple(tup)), {})
+            row[var] = row.get(var, 0.0) + coef
+
+        # ---- observed events: log or sync
+        for ev in events:
+            objs = [str(o) for o in ev.objects]
+            by_type: Dict[str, List[str]] = {}
+            for o in objs:
+                by_type.setdefault(str(types.get(o)), []).append(o)
+            log_var = new_var(float(len(objs)), ("log", ev.event_id))
+            row = {log_var: 1.0}
+            event_vars = {"log": log_var}
+            sync_allowed, guard_violated = event_info.get(ev.event_id, (True, False))
+            if sync_allowed:
+                for tid, t in self.transitions.items():
+                    if t.get("invisible", False) or t.get("label") != ev.activity:
+                        continue
+                    binding = self._sync_binding(tid, by_type)
+                    if binding is None:
+                        continue
+                    sv = new_var(0.0, ("sync", ev.event_id, tid, binding))
+                    row[sv] = 1.0
+                    event_vars[tid] = sv
+                    if guard_violated:
+                        guard_terms.append((sv, 1.0))
+                    if binding == "ambiguous":
+                        continue  # relaxed: no token effects
+                    self._add_firing_tokens(tid, binding, {}, sv, add_token, creations)
+            eq_rows.append(row)
+            eq_rhs.append(1.0)
+            if fixed_events and ev.event_id in fixed_events:
+                want = fixed_events[ev.event_id]
+                var = event_vars.get("log" if want == "log" else want)
+                if var is None:
+                    return None  # path structure not representable: no bound
+                eq_rows.append({var: 1.0})
+                eq_rhs.append(1.0)
+
+        # ---- model moves
+        y_by_t: Dict[Any, List[int]] = {}
+        n_vars_est = len(cost)
+        for tid, table in self.vars.items():
+            t = self.transitions[tid]
+            scalars = [(n, ty, nu) for n, (ty, is_list, nu) in table.items() if not is_list]
+            lists = [(n, ty) for n, (ty, is_list, _nu) in table.items() if is_list]
+            if any(not domain.get(ty) for _n, ty, _nu in scalars):
+                continue
+            combos = list(itertools.product(*[domain[ty] for _n, ty, _nu in scalars])) if scalars else [()]
+            n_vars_est += len(combos) * (1 + sum(len(domain.get(ty, [])) for _n, ty in lists))
+            if n_vars_est > self.MAX_VARIABLES:
+                return None
+            visible = not t.get("invisible", False)
+            for combo in combos:
+                binding = {n: o for (n, _ty, _nu), o in zip(scalars, combo)}
+                y = new_var(float(len(scalars)) if visible else 0.0, ("model", tid, binding))
+                y_by_t.setdefault(tid, []).append(y)
+                zvars: Dict[str, Dict[str, int]] = {}
+                for lname, lty in lists:
+                    zvars[lname] = {}
+                    for o in domain.get(lty, []):
+                        z = new_var(1.0 if visible else 0.0, ("member", y, lname, o))
+                        zvars[lname][o] = z
+                        ub_rows.append({z: 1.0, y: -1.0})  # z <= y
+                        ub_rhs.append(0.0)
+                self._add_firing_tokens(tid, binding, zvars, y, add_token, creations)
+
+        # ---- path structure: at least k model moves of transition t
+        for tid, k in (min_model_counts or {}).items():
+            ys = y_by_t.get(tid)
+            if not ys:
+                return None
+            ub_rows.append({y: -1.0 for y in ys})
+            ub_rhs.append(-float(k))
+
+        # ---- one shared unit of data cost for guard-violating synchronous moves
+        if guard_terms:
+            d = new_var(1.0, ("data",))
+            for sv, g in guard_terms:
+                ub_rows.append({sv: g, d: -1.0})
+                ub_rhs.append(0.0)
+
+        # ---- each object created at most once (not at all if already created)
+        created = set(map(str, created or ()))
+        for o, row in creations.items():
+            ub_rows.append(dict(row))
+            ub_rhs.append(0.0 if o in created else 1.0)
+
+        # ---- token conservation: consumed - produced <= 0  (rows store produced +, consumed -)
+        initial: Dict[Tuple[Any, Tuple[str, ...]], float] = {}
+        for pid, tup in (initial_tokens or ()):
+            key = (pid, tuple(tup))
+            initial[key] = initial.get(key, 0.0) + 1.0
+        for key, row in token_rows.items():
+            ub_rows.append({k: -v for k, v in row.items()})
+            ub_rhs.append(initial.get(key, 0.0))
+
+        n = len(cost)
+
+        def to_matrix(rows):
+            r, c, v = [], [], []
+            for i, row in enumerate(rows):
+                for j, val in row.items():
+                    if val != 0.0:
+                        r.append(i)
+                        c.append(j)
+                        v.append(val)
+            return coo_matrix((v, (r, c)), shape=(len(rows), n)).tocsr()
+
+        res = linprog(cost,
+                      A_ub=to_matrix(ub_rows) if ub_rows else None, b_ub=ub_rhs or None,
+                      A_eq=to_matrix(eq_rows) if eq_rows else None, b_eq=eq_rhs or None,
+                      bounds=[(0, None)] * n, method="highs",
+                      options={"time_limit": float(time_limit)})
+        if res.status != 0 or res.fun is None:
+            return None
+        self.last_value = float(res.fun)
+        self.last_size = (n, len(ub_rows) + len(eq_rows))
+        if keep_solution:
+            self.last_solution = [(meta[k], float(res.x[k])) for k in range(n)]
+        return int(math.ceil(float(res.fun) - 1e-6))
+
+    # ------------------------------------------------------------------
+    def candidate_schedule(self, component) -> Optional[List[Dict[str, Any]]]:
+        """Turn the last LP solution into an ordered list of concrete moves.
+
+        Events: log or synchronous move as the (rounded) solution says.  Model
+        moves: firing counts rounded to integers, list members included where
+        their value is at least 0.5.  Moves are ordered by replaying the
+        observed events in order and firing, just before an event, the pending
+        model moves needed (transitively) to produce its missing tokens.
+        Only token availability is checked here; the result is a *candidate*
+        that the caller evaluates exactly (guards, data, exactness).
+        """
+        sol = getattr(self, "last_solution", None)
+        if not sol:
+            return None
+        choice: Dict[str, Tuple[float, Tuple]] = {}
+        model: List[Tuple[Any, Dict[str, Any], int, int]] = []
+        members: Dict[int, List[Tuple[str, str]]] = {}
+        for idx, (info, val) in enumerate(sol):
+            if not info:
+                continue
+            if info[0] in ("log", "sync"):
+                eid = info[1]
+                if eid not in choice or val > choice[eid][0]:
+                    choice[eid] = (val, info)
+            elif info[0] == "model":
+                k = int(round(val))
+                if k > 0:
+                    model.append((info[1], dict(info[2]), k, idx))
+            elif info[0] == "member" and val >= 0.5:
+                members.setdefault(info[1], []).append((info[2], info[3]))
+        pending: List[Tuple[Any, Dict[str, Any]]] = []
+        for tid, binding, k, idx in model:
+            b = dict(binding)
+            for lname, o in members.get(idx, []):
+                b.setdefault(lname, []).append(o)
+            for lname, (_ty, is_list, _nu) in self.vars.get(tid, {}).items():
+                if is_list:
+                    b.setdefault(lname, [])
+            pending.extend((tid, dict(b)) for _ in range(k))
+        marking: Dict[Tuple[Any, Tuple[str, ...]], int] = {}
+
+        def effects(tid, binding):
+            cons, prod = [], []
+            for pid, out, comps in self.arcs.get(tid, []):
+                list_pos = [k for k, c in enumerate(comps) if c[2]]
+                fixed = [binding.get(c[0]) for c in comps]
+                if not list_pos:
+                    if any(x is None for x in fixed):
+                        continue
+                    tups = [tuple(fixed)]
+                else:
+                    k = list_pos[0]
+                    tups = [tuple(o if i == k else fixed[i] for i in range(len(comps)))
+                            for o in (binding.get(comps[k][0]) or [])]
+                (prod if out else cons).extend((pid, t) for t in tups)
+            return cons, prod
+
+        def enabled(cons):
+            need: Dict[Tuple, int] = {}
+            for t in cons:
+                need[t] = need.get(t, 0) + 1
+            return all(marking.get(t, 0) >= c for t, c in need.items())
+
+        def fire(cons, prod):
+            for t in cons:
+                marking[t] -= 1
+            for t in prod:
+                marking[t] = marking.get(t, 0) + 1
+
+        out: List[Dict[str, Any]] = []
+        events = [u.event for u in component.units
+                  if u.event is not None and u.event.event_id in component.execution.event_ids]
+        for ev in events:
+            val, info = choice.get(ev.event_id, (0.0, ("log", ev.event_id)))
+            if info[0] == "log":
+                out.append({"kind": "log", "event_id": ev.event_id})
+                continue
+            tid, binding = info[2], info[3]
+            if binding == "ambiguous":
+                return None
+            cons, prod = effects(tid, binding)
+            progress = True
+            while not enabled(cons) and progress:
+                progress = False
+                missing = {t for t in cons if marking.get(t, 0) <= 0}
+                needed = set(missing)
+                # transitive closure of needs over pending moves
+                changed = True
+                while changed:
+                    changed = False
+                    for ptid, pb in pending:
+                        pc, pp = effects(ptid, pb)
+                        if needed & set(pp):
+                            for t in pc:
+                                if marking.get(t, 0) <= 0 and t not in needed:
+                                    needed.add(t)
+                                    changed = True
+                for j, (ptid, pb) in enumerate(pending):
+                    pc, pp = effects(ptid, pb)
+                    if (needed & set(pp)) and enabled(pc):
+                        fire(pc, pp)
+                        out.append({"kind": "model", "transition_id": ptid, "binding": pb})
+                        pending.pop(j)
+                        progress = True
+                        break
+            if not enabled(cons):
+                return None
+            fire(cons, prod)
+            out.append({"kind": "sync", "event_id": ev.event_id, "transition_id": tid,
+                        "binding": binding})
+        return out
+
+    # ------------------------------------------------------------------
+    def _sync_binding(self, tid, by_type: Dict[str, List[str]]):
+        """Binding of a synchronous move (exactly the observed objects), "ambiguous", or None."""
+        table = self.vars.get(tid, {})
+        used_types = set()
+        binding: Dict[str, Any] = {}
+        for name, (ty, is_list, _nu) in table.items():
+            objs = by_type.get(ty, [])
+            used_types.add(ty)
+            if is_list:
+                binding[name] = list(objs)
+            else:
+                if len(objs) != 1:
+                    return None
+                binding[name] = objs[0]
+        if set(by_type) - used_types:
+            return None  # an observed object that no variable can bind
+        return binding
+
+    def _add_firing_tokens(self, tid, binding: Dict[str, Any], zvars: Dict[str, Dict[str, int]],
+                           var: int, add_token, creations) -> None:
+        table = self.vars.get(tid, {})
+        for name, (ty, is_list, nu) in table.items():
+            if nu and not is_list:
+                obj = binding.get(name)
+                if obj is not None:
+                    creations.setdefault(obj, {})
+                    creations[obj][var] = creations[obj].get(var, 0.0) + 1.0
+        for pid, out, comps in self.arcs.get(tid, []):
+            sign = 1.0 if out else -1.0
+            list_pos = [k for k, c in enumerate(comps) if c[2]]
+            if not list_pos:
+                tup = tuple(binding.get(c[0]) for c in comps)
+                if any(x is None for x in tup):
+                    continue
+                add_token(pid, tup, var, sign)
+                continue
+            k = list_pos[0]
+            lname = comps[k][0]
+            fixed = [binding.get(c[0]) if i != k else None for i, c in enumerate(comps)]
+            if any(x is None for i, x in enumerate(fixed) if i != k):
+                continue
+            if lname in zvars:  # model move: membership variables
+                for o, z in zvars[lname].items():
+                    tup = tuple(o if i == k else fixed[i] for i in range(len(comps)))
+                    add_token(pid, tup, z, sign)
+            else:  # synchronous move: concrete list
+                for o in binding.get(lname, []) or []:
+                    tup = tuple(o if i == k else fixed[i] for i in range(len(comps)))
+                    add_token(pid, tup, var, sign)

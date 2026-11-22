@@ -1,19 +1,13 @@
 # ODACC
 
-**ODACC** is a research implementation of exact **online data-aware object-centric conformance checking**. It incrementally computes certified optimal prefix alignments for object-centric event streams using component-aware processing, certified continuation and repair paths, symbolic A* search, and exact constraint reasoning over DOPID models.
+**ODACC** is a research implementation of **online data-aware object-centric conformance checking**. It incrementally computes prefix-alignments for object-centric event streams against data-aware object-centric Petri nets with identifiers (DOPIDs). A result is reported as *certified* (optimal) only when its cost matches a proven lower bound.
 
-This repository accompanies the paper **Exact Online Data-Aware Object-Centric Conformance Checking with Incremental Symbolic Alignments** and contains the implementation, benchmark instances, benchmark-generation tools, modified CoCoMoT files, experiment configurations, and result artifacts used in the evaluation.
+The method runs in two modes:
 
+- **exact mode**: every returned prefix-alignment is certified optimal;
+- **anytime mode**: each update ends at a deadline and returns the best prefix-alignment found, with a proven lower bound on the optimal cost.
 
-> **Note on reported results.**
-> The repository contains a newer complete experiment run performed after paper
-> submission on faster hardware, using the same benchmark definitions, algorithms,
-> timeout settings, and experimental protocol. The symbolic completion result is
-> unchanged, while the SMT reference completes additional cases within the timeout.
-> Consequently, some aggregate completion and runtime values in `results/` differ
-> from those reported in the submitted manuscript. See [`results/README.md`](results/README.md)
-> for the exact differences and the corresponding result files.
-
+This repository accompanies the paper **Exact When You Need It: Incremental Prefix-Alignments for Online Data-Aware Object-Centric Conformance Checking**. It contains the implementation, benchmark instances, benchmark-generation tools, the modified CoCoMoT files, the experiment runners and the recorded results. See [`RUNNING.md`](RUNNING.md) for installation, tests and the experiments of the paper, and [`results/README.md`](results/README.md) for the recorded results.
 
 ## Repository structure
 
@@ -190,7 +184,7 @@ ODACC builds on:
 - **CoCoMoT** -- SMT-based conformance checking for data Petri nets and OPID/DOPID models: https://github.com/bytekid/cocomot
 - **Z3** -- SMT solver used in the reported ODACC experiments.
 
-See `external/README.md` and `external/cocomot/README.md` for details about the modified upstream files used by ODACC.
+See `external/README.md` for details about the modified upstream files used by ODACC.
 
 ## Citation
 

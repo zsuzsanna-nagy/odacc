@@ -10,6 +10,20 @@ from .domain import AlignmentResult, ObservableUnit
 from .report import certified_result_dict
 
 
+class SkippedUpdate:
+    """Marker for an online update that was not solved.
+
+    ``reason`` is ``"timeout"`` (this update exceeded the per-update limit) or
+    ``"after_timeout"`` (its component, or a component merged into it, timed
+    out earlier; later prefixes of it are only larger).
+    """
+
+    def __init__(self, component_id, prefix_position, reason):
+        self.component_id = component_id
+        self.prefix_position = prefix_position
+        self.reason = reason
+
+
 @dataclass
 class OnlineRun:
     prefix_results: List[AlignmentResult] = field(default_factory=list)
@@ -23,6 +37,9 @@ class OnlineRun:
     # preserves the stream/event/component metadata required for per-prefix
     # latency plots and for locating expensive updates.
     prefix_timing_records: List[dict] = field(default_factory=list)
+    # Updates skipped because their component timed out (SMT, per component).
+    skipped_updates: int = 0
+    given_up_components: List[int] = field(default_factory=list)
     # Compact, JSON-safe snapshots copied immediately after each certified
     # update.  Heartbeat/checkpoint writers use these immutable payloads instead
     # of traversing live AlignmentResult/search/solver structures.
@@ -38,8 +55,10 @@ class OnlineMonitor:
 
     Only the component touched by an incoming observable unit is recomputed.
     If the unit merges components, their observation formulas and partial-order
-    executions are merged and the affected joint component is recomputed from
-    the conservative safe checkpoint (the beginning of the merged histories).
+    executions are merged.  The backend then warm-starts the merged component
+    from the certified boundaries of its parent components (compositional
+    bridge certification) and falls back to a full-prefix search of the merged
+    history only when that composition cannot be certified.
     """
 
     def __init__(self, backend, offline_backend=None, diagnostic_heartbeat_seconds: float = 0.0):
@@ -153,14 +172,36 @@ class OnlineMonitor:
             heartbeat_thread.start()
 
         stats_before = self._symbolic_stats_snapshot(self.backend)
+        given_up = self.__dict__.setdefault("_given_up_components", set())
+        cid = component.component_id
+        parents = set(getattr(component, "merged_from", ()) or ())
+        if cid in given_up or (parents & given_up):
+            given_up.add(cid)
+            stop_heartbeat.set()
+            if heartbeat_thread is not None:
+                heartbeat_thread.join(timeout=0.2)
+            pos = max((u.position for u in component.units), default=0)
+            return SkippedUpdate(cid, pos, "after_timeout"), merged
         try:
             result = self.backend.solve(component, offline=False)
+        except Exception as exc:
+            if type(exc).__name__ != "SMTUpdateTimeout":
+                raise
+            given_up.add(cid)
+            pos = max((u.position for u in component.units), default=0)
+            result = SkippedUpdate(cid, pos, "timeout")
         finally:
             stop_heartbeat.set()
             if heartbeat_thread is not None:
                 heartbeat_thread.join(timeout=0.2)
         stats_after = self._symbolic_stats_snapshot(self.backend)
-        certification_route = self._certification_route(stats_before, stats_after, result)
+        if isinstance(result, SkippedUpdate):
+            return result, merged
+        # Prefer the route recorded by the backend at the point of acceptance;
+        # the counter-based classification is only a fallback for backends that
+        # do not record it (e.g. the SMT reference).
+        certification_route = getattr(result, "certification_route", None) \
+            or self._certification_route(stats_before, stats_after, result)
         if result is not None:
             # Dynamic reporting metadata: AlignmentResult remains unchanged, so
             # existing JSON/result consumers stay backwards compatible.
@@ -201,7 +242,28 @@ class OnlineMonitor:
             )
             elapsed = time.perf_counter() - t0
 
-            if result is not None:
+            if isinstance(result, SkippedUpdate):
+                update_index += 1
+                out.skipped_updates += 1
+                if result.component_id not in out.given_up_components:
+                    out.given_up_components.append(result.component_id)
+                event = unit.event
+                out.prefix_timing_records.append({
+                    "update_index": update_index,
+                    "stream_position": unit.position,
+                    "component": result.component_id,
+                    "prefix_position": result.prefix_position,
+                    "event_id": event.event_id if event is not None else None,
+                    "activity": event.activity if event is not None else None,
+                    "event_object_count": len(event.objects) if event is not None else 0,
+                    "merged": bool(merged),
+                    "wall_seconds": elapsed,
+                    "feasible": None,
+                    "cost": None,
+                    "skipped": result.reason,
+                })
+                result = None
+            elif result is not None:
                 update_index += 1
                 out.prefix_results.append(result)
                 out.prefix_wall_seconds.append(elapsed)
@@ -233,6 +295,11 @@ class OnlineMonitor:
                     "encode_seconds": result.encode_seconds,
                     "solve_seconds": result.solve_seconds,
                     "certification_route": getattr(result, "certification_route", None),
+                    "certification_route_detail": getattr(result, "certification_route_detail", None),
+                    "certified": getattr(result, "certified", None),
+                    "lower_bound": getattr(result, "lower_bound", None),
+                    "solution_status": getattr(result, "solution_status", None),
+                    "optimality_gap": getattr(result, "optimality_gap", None),
                 })
 
             out.completed_stream_units += 1
