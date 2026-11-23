@@ -6,7 +6,7 @@ The results reported in the paper, one folder per method:
 |---|---|---|
 | `smt/` | SMT reference | re-solves every prefix; 120 s per update, timed-out components given up |
 | `exact/` | proposed method, exact mode | variant `pure-jointlb-lp`; 120 s per update, case stopped at the first update over it |
-| `anytime/` | proposed method, anytime mode | variant `anytime-smt-jointlb-lp`; deadline 100 s, SMT check after 10 s |
+| `anytime/` | proposed method, anytime mode | variant `anytime-smt-jointlb-lp`; deadline 20 s, SMT check after 5 s |
 
 Each folder contains `all_runs_summary.csv` (one row per case: status,
 completed updates, times) and `all_runs_prefix_timings.csv` (one row per

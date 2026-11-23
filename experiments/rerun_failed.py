@@ -4,7 +4,7 @@
 Example (Windows, one line):
 
     python experiments\\rerun_failed.py --session experiments\\experiment_runs\\<session>
-        --variant anytime-smt-jointlb-lp --deadline 100 --observation-timeout 0 --online-timeout 0
+        --variant anytime-smt-jointlb-lp --deadline 20 --smt-after 5 --observation-timeout 60 --online-timeout 0 --on-observation-timeout continue
 
 * Files are selected from ``<session>/all_runs_summary.csv``: every file whose
   ``online_status`` is not ``ONLINE_OK`` (or only the statuses given with

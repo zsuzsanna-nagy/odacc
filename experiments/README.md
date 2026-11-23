@@ -73,7 +73,7 @@ case per process, with a limit of 120 s per update:
 |---|---|---|
 | SMT reference | `python run_online_smt.py --observation-timeout 120 --online-timeout 0` | the component is given up; its later updates (and those of components merging with it) are skipped, other components continue |
 | Exact (proposed, exact mode) | `python run_online_symbolic.py --variant pure-jointlb-lp --observation-timeout 120 --online-timeout 0` | the case stops at the first update over the limit |
-| Anytime (proposed, anytime mode) | `python run_online_symbolic.py --variant anytime-smt-jointlb-lp --deadline 100 --observation-timeout 120 --online-timeout 0 --on-observation-timeout continue` | each update ends at its 100 s deadline; an update that still exceeds 120 s is recorded, and the case continues |
+| Anytime (proposed, anytime mode) | `python run_online_symbolic.py --variant anytime-smt-jointlb-lp --deadline 20 --smt-after 5 --observation-timeout 60 --online-timeout 0 --on-observation-timeout continue` | each update ends at its 20 s deadline; an update that still exceeds 60 s is recorded, and the case continues |
 
 Each configuration was executed once. Runtimes depend on hardware and solver
 versions; run the experiments on an otherwise lightly loaded machine when
@@ -91,7 +91,7 @@ environment variable `ODACC_COCOMOT_ROOT` to use another location.
 - `pure-jointlb-lp`: exact mode with the joint lower bound, LP-guided candidates and the LP
   search heuristic (used in the paper);
 - `anytime-smt-jointlb-lp`: anytime mode with the same options, a deadline and the
-  SMT strict-improvement check after 10 s (used in the paper);
+  SMT strict-improvement check after 5 s (used in the paper);
 - `pure`: Levels 1-3 without the LP options;
 - `smt-level3`, `anytime-smt`, `jointlb`, ...: further variants for ablation
   (see the `VARIANTS` table in the runner).

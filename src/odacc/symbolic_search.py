@@ -261,7 +261,12 @@ class SearchState:
             f, _, nid = heapq.heappop(self.open_heap)
             if nid not in self.open_ids:
                 continue
-            node = self.nodes[nid]
+            # Revalidation can discard nodes that were formerly in OPEN.
+            # Treat remaining stale heap references as invalidated entries.
+            node = self.nodes.get(nid)
+            if node is None:
+                self.open_ids.discard(nid)
+                continue
             # stale heap entry after a cost update
             if abs(node.f - f) > 1e-9:
                 continue
@@ -682,6 +687,7 @@ class JODAPSolver:
                    "deadline_interrupted_queries", "deadline_interrupted_updates",
                    "deadline_all_log_results", "deadline_skipped_context_builds",
                    "deadline_previous_result_extensions", "smt_fallback_skipped_predicted",
+                   "strict_mode_skipped_lb_claims", "uncertified_unsound_depth_bound",
                    "lp_candidate_unschedulable", "lp_candidate_infeasible",
                    "lp_candidate_improvements", "lp_heuristic_evaluations",
                    "lp_heuristic_raises", "lp_heuristic_seconds_x1000",
@@ -1390,8 +1396,8 @@ class JODAPSolver:
                  canonical_fresh_bindings: Optional[Dict[int, str]] = None) -> PreparedJODAP:
         """Return the smallest reusable eager context that can encode this query.
 
-        For ordinary searches this is the persistent initial-state context.
-        For a temporary state rooted at a certified online
+        For ordinary searches this is the persistent initial-state context used
+        by earlier versions.  For a temporary state rooted at a certified online
         checkpoint, instant 0 is instead fixed to the retained concrete boundary
         marking/token-data witness and only the suffix depth is encoded.  The
         checkpoint context also receives a conservative object-domain slice; if
@@ -4783,7 +4789,14 @@ class SymbolicIncrementalBackend:
         # (where monotonicity is not guaranteed); --monotonicity-guard off for
         # ablation.
         self.monotonicity_guard: bool = True
-        # Candidates from the joint-LP solution, and the
+        # Use only lower bounds covered by the formal results (default).  Off
+        # restores the behaviour of earlier versions: two boundary-based "+1"
+        # claims (one-step missing-input repair, extra-event fast bound), the
+        # increment for guard violations repairable through object attributes,
+        # no monotonicity guard for changed attribute values, and LP rounding
+        # with a 1e-6 margin.
+        self.strict_lower_bounds: bool = True
+        # v2.0 (experimental): candidates from the joint-LP solution, and the
         # joint LP as remaining-cost estimate of the exact search.
         self.use_lp_candidates: bool = False
         self.use_lp_heuristic: bool = False
@@ -4825,6 +4838,20 @@ class SymbolicIncrementalBackend:
         except Exception:
             self._joint_bound = None
         self._depth_bound_sound, _depth_reasons = model_depth_bound_condition(net)
+        # Transitions with two object variables of the same type: a synchronous
+        # move's binding is then not determined by the observed objects alone.
+        self._ambiguous_binding_transitions: Set[str] = set()
+        _data_types = set(getattr(net, "_data_types", ()) or ())
+        for _t in net._transitions:
+            _types = {}
+            for _a in net._arcs:
+                if _a.get("source") == _t["id"] or _a.get("target") == _t["id"]:
+                    for _n, _ty in (_a.get("inscription") or ()):
+                        if _ty in _data_types:
+                            continue
+                        _types.setdefault(str(_n), str(_ty).replace(" LIST", ""))
+            if len(set(_types.values())) < len(_types):
+                self._ambiguous_binding_transitions.add(_t["id"])
         if not self._depth_bound_sound:
             print("[odacc] WARNING: cost-derived model-depth bound not applicable "
                   f"({'; '.join(_depth_reasons)}); falling back to |E|+|O|+margin, "
@@ -5107,7 +5134,8 @@ class SymbolicIncrementalBackend:
             if ev0 is not None:
                 state.proven_prefix_lower_bound = max(
                     state.proven_prefix_lower_bound,
-                    float(self._event_zero_deviation_increment_lb(component, ev0))
+                    float(self._event_zero_deviation_increment_lb(
+                        component, ev0, event_specific=False))
                 )
         self._apply_projection_lb(component, state)
         if getattr(component, "merged_from", ()) and not self._safe_mode:
@@ -7267,6 +7295,14 @@ class SymbolicIncrementalBackend:
         state.nodes = {nid: n for nid, n in state.nodes.items() if nid in valid}
         state.predecessor = {nid: x for nid, x in state.predecessor.items() if nid in valid}
         state.signatures = {self._signature(n): nid for nid, n in state.nodes.items()}
+        # Revalidation may delete nodes that still have OPEN/heap entries.
+        # Rebuild the frontier from surviving, non-CLOSED nodes only.
+        state.closed_ids.intersection_update(valid)
+        state.open_ids.clear()
+        state.open_heap.clear()
+        state.assignments_by_node = {
+            nid: a for nid, a in state.assignments_by_node.items() if nid in valid
+        }
         for nid in sorted(state.nodes):
             if nid not in state.closed_ids:
                 state.push(state.nodes[nid])
@@ -8378,6 +8414,12 @@ class SymbolicIncrementalBackend:
                     event_id=event_id, error=repr(exc),
                 )
 
+        if positive_lb_proved and self.strict_lower_bounds:
+            # The argument uses the token missing in the *stored* boundary;
+            # another optimal alignment of the previous prefix may contain it.
+            # Not covered by the paper's proofs: candidate only in strict mode.
+            positive_lb_proved = False
+            self.jodap.stats["strict_mode_skipped_lb_claims"] += 1
         if positive_lb_proved:
             state.proven_prefix_lower_bound = max(
                 state.proven_prefix_lower_bound, total_cost
@@ -8672,6 +8714,14 @@ class SymbolicIncrementalBackend:
             if eid in parent.consumed
         )
         positive_lb_proved = not invisible_producer and not observed_producer
+        if positive_lb_proved and self.strict_lower_bounds:
+            # The token is missing in the *stored* optimal boundary, but another
+            # optimal alignment of the previous prefix may contain a model move
+            # producing it while saving cost elsewhere; then the new event can
+            # synchronise at no extra cost.  Not covered by the paper's proofs:
+            # candidate only in strict mode.
+            positive_lb_proved = False
+            self.jodap.stats["strict_mode_skipped_lb_claims"] += 1
         repair_lb = float(parent_assignment.total_cost) + 1.0
         if positive_lb_proved:
             state.proven_prefix_lower_bound = max(state.proven_prefix_lower_bound, repair_lb)
@@ -9171,45 +9221,33 @@ class SymbolicIncrementalBackend:
         cleanup()
         return False
 
-    def _event_zero_deviation_increment_lb(
-            self, component: ComponentState, event: StreamEvent) -> int:
-        """Prove whether the new event necessarily adds positive cost.
+    def _event_sync_status(self, component: ComponentState, event: StreamEvent,
+                           use_object_attributes: bool = True) -> str:
+        """Can the event be explained synchronously without any deviation?
 
-        A zero-cost extension is possible only through a structurally compatible
-        synchronous transition whose guard is satisfied when *all recorded
-        observations are kept unchanged on the model side*.  We therefore bind
-        the transition to the observed objects and directly evaluate its guard
-        with the observed event values and currently observed object attributes.
-
-        The previous implementation first inspected ``constraint.vars()`` and
-        required every non-object variable to occur in ``event.attributes``.
-        CoCoMoT's expression API may report object variables occurring inside
-        functions (e.g. ``P`` in ``sum(cost(P))`` or ``o`` in ``budget(o)``) in
-        a form that does not exactly match the binding dictionary.  Such guards
-        were consequently classified as having an unknown historical scalar and
-        the positive lower bound was lost.  The expression evaluator already has
-        the sound behavior we need: missing event/process values, missing object
-        bindings, or unsupported constructs evaluate to ``None``.  Hence we let
-        it decide completeness instead of pre-classifying variables.
-
-        If every structurally compatible transition evaluates to ``False``, no
-        zero-deviation synchronous explanation exists, so at least one unit of
-        non-negative alignment cost is unavoidable.  ``True`` or ``None`` for
-        any candidate conservatively leaves the lower bound at zero.
+        Returns ``"none"`` if no transition with the event's label can bind
+        exactly its objects, ``"violated"`` if every such binding has a guard
+        that evaluates to False, and ``"possible"`` otherwise (True, unguarded,
+        or undecidable).  With ``use_object_attributes=False`` the guard is
+        evaluated with the object attributes *unknown* (only observed event
+        values are used; unknown values propagate), so ``"violated"`` then means
+        that no choice of object-attribute values can satisfy the guard: every
+        synchronous explanation needs a mismatch of the event's own attributes.
         """
         transitions = self.visible_by_label.get(event.activity, ())
         if not transitions:
-            return max(1, len(event.objects))
-
-        observed_oa = component.observation_formula.current_object_attributes()
-        object_values = {
-            (str(o), str(a)): v
-            for o, vals in observed_oa.items() for a, v in vals.items()
-        }
+            return "none"
+        if use_object_attributes:
+            observed_oa = component.observation_formula.current_object_attributes()
+            object_values = {
+                (str(o), str(a)): v
+                for o, vals in observed_oa.items() for a, v in vals.items()
+            }
+        else:
+            object_values = {}
         event_values = dict(event.attributes)
         saw_structural = False
         saw_unknown = False
-
         for t in transitions:
             binding = self.jodap._lazy_binding(
                 component, self.net_metadata, t, tuple(event.objects)
@@ -9217,47 +9255,67 @@ class SymbolicIncrementalBackend:
             if binding is None:
                 continue
             saw_structural = True
-
-            # An unguarded structurally compatible synchronous transition is a
-            # zero-deviation explanation, so no positive increment is provable.
+            if t.get("id") in self._ambiguous_binding_transitions:
+                # Two object variables of one type: the observed objects admit
+                # several bindings, and only one is evaluated here.
+                saw_unknown = True
+                continue
             constraint = t.get("constraint")
             if constraint is None:
                 self.jodap.stats["zero_deviation_guard_true"] += 1
-                return 0
-
+                return "possible"
             self.jodap.stats["zero_deviation_guard_checks"] += 1
             value = self.jodap._lazy_eval_expr(
                 constraint, event_values, binding, object_values
             )
             if value is True:
                 self.jodap.stats["zero_deviation_guard_true"] += 1
-                return 0
+                return "possible"
             if value is None:
-                # Missing historical/process data or an unsupported expression
-                # means that this transition *might* still admit a zero-cost
-                # explanation.  Remember the uncertainty but continue checking
-                # other candidates for diagnostics.
                 self.jodap.stats["zero_deviation_guard_unknown"] += 1
                 saw_unknown = True
                 continue
-
-            # False means this concrete synchronous explanation requires at
-            # least one data/object observation repair.
             self.jodap.stats["zero_deviation_guard_false"] += 1
-
         if not saw_structural:
-            # No synchronous move can even match the activity/object structure;
-            # the event must be consumed by a positive-cost deviation.
-            return max(1, len(event.objects))
+            return "none"
         if saw_unknown:
-            return 0
+            return "possible"
+        return "violated"
 
-        # Every structurally compatible synchronous transition was false under
-        # the zero-deviation observed valuation.  Since deviation costs are
-        # non-negative and unit mismatch costs are at least one, the extended
-        # prefix has an incremental lower bound of one.
-        self.jodap.stats["positive_lower_bound_proofs"] += 1
-        return 1
+    def _event_zero_deviation_increment_lb(
+            self, component: ComponentState, event: StreamEvent,
+            event_specific: bool = True) -> int:
+        """Lower bound on the cost of the move explaining ``event``.
+
+        * No synchronous match: the event must be logged, at cost |O(e)|.
+        * Every synchronous match violates its guard: the move explaining the
+          event costs at least 1 -- as a log move if |O(e)| >= 1, and as a
+          synchronous move through a mismatch of the event's own attributes.
+          With ``event_specific=True`` (the default; used for increments
+          C*_i + iota(e) <= C*_{i+1}) the guard must be false *for all values
+          of the object attributes*: an object-attribute repair is charged
+          once per attribute and may already be paid by earlier events, so it
+          cannot justify an increment.  ``event_specific=False`` (guard false
+          under the observed object attributes) is sound only where no earlier
+          repair can be shared, e.g. for the first event of a component.
+        * Otherwise 0.
+        With ``strict_lower_bounds`` off, the behaviour of earlier versions is
+        reproduced (observed object attributes; at least 1 if unmatched).
+        """
+        k = len(event.objects)
+        if not self.strict_lower_bounds:
+            status = self._event_sync_status(component, event, use_object_attributes=True)
+            if status == "none":
+                return max(1, k)
+            return 1 if status == "violated" else 0
+        status = self._event_sync_status(component, event,
+                                         use_object_attributes=not event_specific)
+        if status == "none":
+            return k
+        if status == "violated" and k >= 1:
+            self.jodap.stats["positive_lower_bound_proofs"] += 1
+            return 1
+        return 0
 
     def _marked_objects_from_assignment(self, component: ComponentState,
                                         assignment: Optional[JointAssignment]) -> Set[str]:
@@ -11790,6 +11848,7 @@ class SymbolicIncrementalBackend:
             elif m.kind == "model" and m.transition_id is not None:
                 counts[m.transition_id] = counts.get(m.transition_id, 0) + 1
         info, _g = self._event_info(component)
+        jb.round_eps = jb.ROUND_EPS_STRICT if self.strict_lower_bounds else jb.ROUND_EPS_LEGACY
         t0 = time.perf_counter()
         try:
             limit = 2.0 if remaining is None else max(0.2, min(2.0, remaining - 0.3))
@@ -11883,6 +11942,8 @@ class SymbolicIncrementalBackend:
                 or not self._joint_bound.ok:
             return None
         event_info, _guard = self._event_info(component)
+        self._joint_bound.round_eps = (self._joint_bound.ROUND_EPS_STRICT if self.strict_lower_bounds
+                                       else self._joint_bound.ROUND_EPS_LEGACY)
         t0 = time.perf_counter()
         remaining = self._remaining_time()
         limit = 10.0 if remaining is None else max(0.5, min(10.0, remaining - 1.0))
@@ -11935,9 +11996,14 @@ class SymbolicIncrementalBackend:
                                 for a, v in (attrs.get(o) or {}).items())))
             info = self._event_lb_cache.get(key)
             if info is None:
-                inc = int(self._event_zero_deviation_increment_lb(component, ev))
-                no_sync = inc >= max(1, len(ev.objects)) and not self._has_structural_sync(component, ev)
-                info = (not no_sync, inc >= 1 and not no_sync)
+                # (synchronous explanation possible, every synchronous
+                # explanation needs a deviation from the observed values).
+                # The second flag uses the observed object attributes: the
+                # projection and joint bounds charge it at most once in total,
+                # which stays sound when one attribute repair serves several
+                # events.
+                status = self._event_sync_status(component, ev, use_object_attributes=True)
+                info = (status != "none", status == "violated")
                 self._event_lb_cache[key] = info
             event_info[ev.event_id] = info
             if info[1]:
@@ -12404,6 +12470,14 @@ class SymbolicIncrementalBackend:
         if result is not None and result.feasible and result.cost is not None:
             state = self.searches.get(component.component_id)
             certified = self._return_path != "deadline"
+            if certified and not self._depth_bound_sound and self._return_path in ("search", "smt") \
+                    and state is not None \
+                    and float(result.cost) > float(state.proven_prefix_lower_bound) + 1e-9:
+                # Without (C1)-(C2) the model-run bound does not cover every
+                # cheaper alignment, so a completed search or SMT check is no
+                # optimality proof (Prop. 5); only a matching bound certifies.
+                certified = False
+                self.jodap.stats["uncertified_unsound_depth_bound"] += 1
             lb = float(result.cost) if certified else (
                 float(state.proven_prefix_lower_bound) if state is not None else 0.0)
             result.certified = certified
@@ -12497,7 +12571,12 @@ class SymbolicIncrementalBackend:
             else:
                 state.sound_lb_override = None
                 self._sync_increment(component, state)
-                if state.new_objects_update and self.monotonicity_guard:
+                if self.monotonicity_guard and (
+                        state.new_objects_update
+                        or (state.attributes_changed and self.strict_lower_bounds)):
+                    # Lemma 2 requires an unchanged object domain and unchanged
+                    # observations (new objects or changed attribute values can
+                    # make the previous prefix cheaper).
                     state.sound_lb_override = 0.0
                     self.jodap.stats["new_object_bound_clamps"] += 1
             if state.sound_lb_override is not None:

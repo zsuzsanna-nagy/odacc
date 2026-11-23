@@ -97,16 +97,22 @@ def build_parser():
                    help="On updates introducing new objects, certify only with "
                         "domain-independent bounds (default on; off for ablation)")
     p.add_argument("--lp-guided-candidates", choices=["on", "off"], default="off",
-                   help="Build candidate alignments from the joint-LP "
+                   help="Experimental (v2.0): build candidate alignments from the joint-LP "
                         "solution (requires --joint-lb on)")
     p.add_argument("--lp-heuristic", choices=["on", "off"], default="off",
-                   help="Joint LP bound of the remaining events as "
+                   help="Experimental (v2.0): joint LP bound of the remaining events as "
                         "remaining-cost estimate in the exact search")
     p.add_argument("--smt-update-timeout", type=float, default=0.0,
                    help="SMT backend, online: time limit per update in seconds (0 = none). "
                         "A component whose update exceeds it is given up: its later updates "
                         "(and those of components merging with it) are skipped, all other "
                         "components continue")
+    p.add_argument("--strict-lower-bounds", choices=["on", "off"], default="on",
+                   help="Use only lower bounds covered by the formal results (default). 'off' "
+                        "restores the behaviour of earlier versions: boundary-based +1 bounds of "
+                        "the one-step and extra-event repairs, an increment for guard violations "
+                        "repairable through object attributes, no monotonicity guard for changed "
+                        "attribute values, and LP rounding with a 1e-6 margin")
     p.add_argument("--fixed-objects", action="store_true",
                    help="Use all observed component objects in the model initial marking")
     p.add_argument("--solve-on-updates", action="store_true",
@@ -322,6 +328,7 @@ def main(argv=None):
             backend.monotonicity_guard = (args.monotonicity_guard == "on")
             backend.use_lp_candidates = (args.lp_guided_candidates == "on")
             backend.use_lp_heuristic = (args.lp_heuristic == "on")
+            backend.strict_lower_bounds = (args.strict_lower_bounds == "on")
             backend.smt_incremental = (args.smt_incremental == "on")
             backend.smt_incremental_headroom = max(1.0, float(args.smt_incremental_headroom))
             backend.use_object_projection_lb = (args.object_projection_lb == "on")

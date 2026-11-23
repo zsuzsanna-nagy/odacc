@@ -23,7 +23,7 @@ Run from the repository root (on Windows, use `\` in paths):
 ```
 python experiments/run_online_smt.py --observation-timeout 120 --online-timeout 0
 python experiments/run_online_symbolic.py --variant pure-jointlb-lp --observation-timeout 120 --online-timeout 0
-python experiments/run_online_symbolic.py --variant anytime-smt-jointlb-lp --deadline 100 --observation-timeout 120 --online-timeout 0 --on-observation-timeout continue
+python experiments/run_online_symbolic.py --variant anytime-smt-jointlb-lp --deadline 20 --smt-after 5 --observation-timeout 60 --online-timeout 0 --on-observation-timeout continue
 ```
 
 Each run creates a session folder under `experiments/experiment_runs/`, named
@@ -31,7 +31,7 @@ with a timestamp, the variant and the time limits. Cases that did not complete
 can be rerun without starting over:
 
 ```
-python experiments/rerun_failed.py --session experiments/experiment_runs/<session> --variant anytime-smt-jointlb-lp --deadline 100 --observation-timeout 120 --online-timeout 0 --on-observation-timeout continue
+python experiments/rerun_failed.py --session experiments/experiment_runs/<session> --variant anytime-smt-jointlb-lp --deadline 20 --smt-after 5 --observation-timeout 60 --online-timeout 0 --on-observation-timeout continue
 ```
 
 The `merged` subfolder of the rerun session holds the complete results.

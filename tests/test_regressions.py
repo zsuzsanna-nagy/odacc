@@ -287,6 +287,36 @@ class EndToEnd(unittest.TestCase):
             units = []
         self.assertTrue(set(Comp.merged_from) & mon._given_up_components)
 
+    def test_increment_bound_not_from_object_attribute_repairs(self):
+        """iota(e) must not count guard violations repairable through object
+        attributes (charged once, possibly paid by earlier events)."""
+        import contextlib
+        import io
+        from odacc.symbolic_search import SymbolicIncrementalBackend
+        from odacc.components import ComponentManager
+        from odacc.ocel import load_ocel1, simulate_stream
+        log = ROOT / "examples/object_attributes/01_violate_order_vip.jsonocel"
+        with contextlib.redirect_stdout(io.StringIO()):
+            be = SymbolicIncrementalBackend(COCOMOT, str(ROOT / "examples/object_attributes/net_object_attrs.pnml"))
+        cm = ComponentManager()
+        checked = False
+        for unit in simulate_stream(load_ocel1(str(log))):
+            comp, _ = cm.apply(unit)
+            ev = unit.event
+            if ev is None or ev.activity != "place order":
+                continue
+            self.assertEqual(be._event_sync_status(comp, ev, True), "violated")
+            self.assertEqual(be._event_sync_status(comp, ev, False), "possible")
+            be.strict_lower_bounds = True
+            self.assertEqual(be._event_zero_deviation_increment_lb(comp, ev), 0)
+            # first event of a component: no earlier repair to share
+            self.assertEqual(be._event_zero_deviation_increment_lb(comp, ev, event_specific=False), 1)
+            be.strict_lower_bounds = False
+            self.assertEqual(be._event_zero_deviation_increment_lb(comp, ev), 1)
+            checked = True
+            break
+        self.assertTrue(checked)
+
     def test_two_orders_in_one_trace(self):
         """Upstream exact sync made 'pay bank transfer' impossible with two orders."""
         model = ROOT / "examples/scalability/models/net_guard_medium.pnml"

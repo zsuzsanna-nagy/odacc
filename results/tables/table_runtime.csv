@@ -1,8 +1,8 @@
 Family,SMT med. s,Exact med. s,Anytime med. s,Exact p95 s,Anytime p95 s,Exact speed-up,n,Anytime speed-up,n
-Comprehensive,0.23,0.10,0.10,1.24,0.76,2.6x,13,2.7x,13
-Object attributes,0.46,0.19,0.19,1.22,1.21,2.2x,8,2.1x,8
-Scalability,0.56,0.08,0.08,0.85,0.85,2.2x,30,2.2x,30
-Order components,1.37,0.03,0.03,0.13,0.12,80.6x,16,80.9x,16
-Controlled mutations,1.37,0.03,0.03,0.15,2.09,78.8x,84,85.8x,84
-Multi-deviation,1.24,0.03,0.04,0.33,100.0,36.3x,17,62.3x,17
-Overall,1.26,0.03,0.04,0.36,2.94,36.3x,168,41.5x,168
+Comprehensive,0.23,0.10,0.10,1.21,0.70,2.5x,13,2.9x,13
+Object attributes,0.46,0.20,0.20,1.25,1.17,2.1x,8,2.2x,8
+Scalability,0.56,0.08,0.08,0.85,0.85,2.1x,30,2.2x,30
+Order components,1.37,0.03,0.03,0.13,0.13,76.4x,16,78.9x,16
+Controlled mutations,1.37,0.03,0.03,0.17,0.88,24.3x,82,73.2x,82
+Multi-deviation,1.24,0.03,0.05,1.27,4.19,7.5x,16,49.0x,16
+Overall,1.26,0.03,0.04,0.45,1.12,12.4x,165,26.3x,165
